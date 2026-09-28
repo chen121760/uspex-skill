@@ -4,9 +4,9 @@ An agent skill for **USPEX 10.5 / 10.6** crystal-structure searches: preparing a
 authoring `INPUT.txt`, finding a queue, wiring `Submission/`, running the search loop,
 restarting it safely, and analysing what came out.
 
-It is written for real group workflows — the kind where a search runs for days on a cluster
-you did not configure, and a silently degraded topology generator or a guessed queue name
-costs more than the calculation itself.
+The focus is the failure modes that are easy to miss: a topology generator that is silently
+skipped, a queue name that was guessed, a scheduler that reports a terminal job while the
+structure never converged, or a per-cell enthalpy read as if it were per atom.
 
 ## What it covers
 
@@ -92,7 +92,7 @@ Then invoke it by name (`uspex`) and ask for what you actually want, for example
 > 100 GPa, find which queue I can use, and show me the exact submit command before anything is
 > submitted.
 
-## Design rules the skill enforces
+## What the skill assumes
 
 - **The installed release is part of the input.** Never infer 10.6 capability from a 10.5-looking
   input; the tree's own parameter dictionary outranks the skill when they disagree.
