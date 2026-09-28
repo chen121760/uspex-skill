@@ -4,10 +4,6 @@ An agent skill for **USPEX 10.5 / 10.6** crystal-structure searches: preparing a
 authoring `INPUT.txt`, finding a queue, wiring `Submission/`, running the search loop,
 restarting it safely, and analysing what came out.
 
-The focus is the failure modes that are easy to miss: a topology generator that is silently
-skipped, a queue name that was guessed, a scheduler that reports a terminal job while the
-structure never converged, or a per-cell enthalpy read as if it were per atom.
-
 ## What it covers
 
 | Area | What the skill gives you |
