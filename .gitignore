@@ -1,0 +1,26 @@
+# Licensed or copyrighted inputs
+POTCAR*
+manuals/
+*.pdf
+
+# USPEX run products
+results*/
+CalcFold*/
+USPEX_IS_DONE
+*.mat
+*.mat.backup
+
+# Large electronic-structure outputs
+WAVECAR
+CHGCAR
+vasprun.xml
+
+# Skill packaging output
+*.tar.gz
+dist/
+
+# Local state
+.work/
+__pycache__/
+*.pyc
+.DS_Store

@@ -1,0 +1,4 @@
+interface:
+  display_name: "USPEX 10.5/10.6 Crystal Structure Search"
+  short_description: "Design, run, and troubleshoot USPEX 10.5/10.6 structure searches"
+  default_prompt: "Use $uspex to prepare and validate a USPEX 10.5/10.6 structure-search workflow."
