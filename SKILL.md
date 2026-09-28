@@ -1,6 +1,6 @@
 ---
 name: uspex
-description: Design, prepare, validate, run, restart, troubleshoot, and analyze USPEX 10.5/10.6 crystal-structure searches. Use for 3D bulk and 2D searches, fixed or variable composition including binary/ternary/quaternary 3D systems, surface reconstruction, VASP relaxation stages, seeds, Slurm/PBS Submission callbacks, repeated USPEX -r execution, USPEX 10.6 x/y custom properties and code 99, or migration and conceptual reproduction of a USPEX 10.5 custom multi-objective code-99 workflow.
+description: Design, prepare, validate, run, restart, troubleshoot, and analyze USPEX 10.5/10.6 crystal-structure searches. Use for 3D bulk and 2D searches, fixed or variable composition including binary/ternary/quaternary 3D systems, surface reconstruction, VASP relaxation stages, seeds, Slurm/PBS Submission callbacks, repeated USPEX -r execution, USPEX 10.6 x/y custom properties and code 99 (one stage, one wrapper, user_property_calculator.py read-back), or migration and conceptual reproduction of a USPEX 10.5 custom multi-objective code-99 workflow (two chained stages, geom.out/energy.txt handshake).
 ---
 
 # USPEX 10.5/10.6
@@ -32,7 +32,7 @@ from a chemically unrelated example.
 | Prepare a machine, install/move a release, or debug imports, skipped random topology, helper `ModuleNotFoundError`, or an immediate exit | `references/environment.md` |
 | Choose calculation type; build `INPUT.txt`; map binary/ternary/quaternary blocks; configure VASP stages | `references/running.md` |
 | Look up a keyword's default, units, or legal values before writing `INPUT.txt`; explain why a run is shorter or costlier than expected | `references/input-parameters.md` |
-| Add arbitrary objectives, external MatterSim/Prophet-like optimization, or reproduce the 10.5 custom pattern | `references/custom-objectives.md` |
+| Add arbitrary objectives, external MatterSim/Prophet-like optimization, or reproduce the 10.5 custom pattern; decide how many code-99 stages a `relax + property` chain needs | `references/custom-objectives.md` |
 | Build or debug Slurm/PBS `Submission/`; find out which queues/partitions exist and which your account may use; read or update the cluster's `~/.cluster-agents.md`; run a persistent `USPEX -r` loop | `scripts/check_schedulers.py`; `references/submission.md`; `references/resources.md` |
 | Add seeds, seed selected generations, restart, move, or recover a run | `references/seeds-restarts.md` |
 | Audit before launch; analyze convex hulls, Pareto fronts, surfaces, and VASP results | `references/validation-analysis.md` |
@@ -83,12 +83,16 @@ from a chemically unrelated example.
    database/topology operators and scheduler queue depth. Use
    `scripts/package_uspex_run.py` when moving a run: it preflights first and packages the
    INPUT, runtime helpers, a checksum manifest, and the complete environment checks together.
-8. Test one deliberately mixed-composition structure when the custom property depends on
+8. On 10.6, build the `relax + property` chain as **one** code-99 stage whose
+   `commandExecutable` runs a single wrapper that calls both calculators in order —
+   never as two or three chained code-99 stages. See
+   `references/custom-objectives.md`.
+   Then test one deliberately mixed-composition structure when the custom property depends on
    more than one species. Use `scripts/smoke_code99.py` to run the external command and
    verify required fresh outputs plus callback flags `0`, `1`, `101`, and optionally `102`.
    Pass `--penalty` for every documented penalty sentinel so a smoke run cannot pass green
-   while the real property path was never exercised, and `--consume-geom-out` to prove the
-   adapter still returns the property after USPEX has consumed `geom.out`.
+   while the real property path was never exercised, and `--consume-geom-out` to prove a
+   geometry-derived property still resolves after USPEX consumes `geom.out`.
    Then test one scheduler callback path with a reduced throwaway USPEX input
    (`numParallelCalcs = 1`, tiny population). Do not use the full production initial
    population as the foreground smoke test.
@@ -162,15 +166,24 @@ from a chemically unrelated example.
   files or their implementation verbatim.
 - Prefer native USPEX 10.6 `x`/`y` properties and official code `99`. Use the 10.5
   patch pattern only when the installed 10.5 environment must be preserved.
+- In 10.6, `abinitioCode = 99` normally means **one** stage. A relaxation and a
+  property evaluation are two calls inside one wrapper program, not two chained
+  code-99 stages: USPEX asks for the property only after the last stage, so a
+  chained middle stage that loses its inputs silently deletes the objective instead
+  of failing. `optType` needs an explicit direction prefix (`1 max_x`/`1 min_x`); a
+  bare `x`/`y` aborts in `DetermineOptType` on the 10.6 build tested here.
+  Reproducing the 10.5 two-stage `geom.out`/`energy.txt` handshake on 10.6 is the
+  known failure mode — see `references/custom-objectives.md`.
 - In 10.5, `optType` values `1201`-`1207` have official elastic-property meaning.
   Reusing one as a private channel requires an isolated, documented installation;
   never apply that convention to an unpatched executable.
 - A code-99 stage is an explicit file contract. In the audited 10.5 custom
   interface, every stage must leave fresh `geom.out` and `energy.txt`; a property
-  stage must additionally leave its property file(s). Expected, scientifically
-  invalid candidates may use documented direction-aware penalty sentinels, but
-  missing/stale outputs and infrastructure failures must never become implicit
-  zeros or apparent success.
+  stage must additionally leave its property file(s). On native 10.6 the contract is
+  whatever `Specific/user_property_calculator.py` reads, so that callback must check
+  its inputs strictly. Expected, scientifically invalid candidates may use
+  documented direction-aware penalty sentinels, but missing/stale outputs and
+  infrastructure failures must never become implicit zeros or apparent success.
 - Scheduler disappearance means only that the scheduler stopped tracking the job;
   it does not prove scientific success. Check the engine outputs.
 - Never rank unconverged VASP structures or mix energies computed with inconsistent

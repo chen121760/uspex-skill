@@ -155,6 +155,12 @@ scp lists to move what your engine reads and what your callback returns, then re
 otherwise the callback runs locally against empty or stale files and the same structure repeats
 forever. The remote side also needs its own interpreter/environment and working SSH keys.
 
+On 10.6 the stage directory is the unit of work. Whatever the callback reads
+(enthalpy, property files, a preserved relaxed geometry) must be produced by the
+**same** stage's command; chaining a second code-99 stage to carry a file forward
+does not work, and the objective is lost silently rather than reported. See
+[`custom-objectives.md`](custom-objectives.md).
+
 ## Adapt a site pair or start from the neutral templates
 
 Prefer a scheduler pair already proven on the target site, then audit it against

@@ -14,7 +14,7 @@ restarting it safely, and analysing what came out.
 | Running | Why one `USPEX -r` is not a finished search, `USPEX_IS_DONE`, a detachable driver loop, and concurrency accounting that matches what the scheduler really tracks |
 | Restarts | Seeds, seed-selected generations, `--clean` + `pickUpYN`/`pickUpGen`/`pickUpFolder`, and how to prove no writer is still active |
 | Liveness | Cadence-based triage of a quiet run — dead loop versus the long silent MATLAB phase every generation contains — plus the `still_running`/`still_reading` distinction, the interpretation to report, and the three recovery branches |
-| Custom objectives | Native 10.6 `x`/`y` properties and code `99`; the direction/sign convention (raw value written, negated copy displayed); the isolated 10.5 pattern for installations that must be preserved |
+| Custom objectives | Native 10.6 `x`/`y` properties and code `99` — one stage, one wrapper, callback read-back — and why the 10.5 two-stage `geom.out`/`energy.txt` handshake must not be reproduced on 10.6; the direction/sign convention (raw value written, negated copy displayed); the isolated 10.5 pattern for installations that must be preserved |
 | Analysis | Reading USPEX's real output files, per-file energy normalisation, failure sentinels, convex hulls, Pareto fronts, 2D/surface caveats, and a selection tool that packages only the structures a user asked for |
 
 ## Layout

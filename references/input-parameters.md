@@ -157,12 +157,15 @@ relaunch writes are in [`seeds-restarts.md`](seeds-restarts.md).
 The route is covered in [`custom-objectives.md`](custom-objectives.md). Three syntax facts
 belong here:
 
-- `optType` accepts `x` and `y` as objectives, with direction prefixes: bare `x`/`y` and
-  `max_x`/`max_y` maximize, `min_x`/`min_y` minimize. EX37 ships `1 min_x`.
+- `optType` accepts `x` and `y` as objectives **with an explicit direction prefix**:
+  `max_x`/`max_y` maximize, `min_x`/`min_y` minimize. EX37 ships `1 min_x`. A bare
+  `x`/`y` is shown in some 10.6 material but aborts with
+  `Error in DetermineOptType` / `MATLAB:badsubscript` on the 10.6 build tested here;
+  always write the prefix.
 - The 10.6 `Specific/user_property_calculator.py` is called with a numeric flag:
   `0` = converged?, `1` = energy/enthalpy (minimization), `101` = property x and
-  `102` = property y, **both maximization by default**. Print exactly one line,
-  `<CALLRESULT> <value>`.
+  `102` = property y. Direction comes from `optType`, not from the callback. Print
+  exactly one line, `<CALLRESULT> <value>`.
 - For code `99`, the external script's *filename* is arbitrary — what matters is the command
   named in the stage's `commandExecutable`. `abinitioCode` takes `99` as an ordinary stage on
   10.6 (EX38 ships `3 3 3 3 99` with one command line per stage); the callback
@@ -170,6 +173,8 @@ belong here:
   USPEX hands the stage `geom.in` (POSCAR), `parameters.json` (keys include `symg`, `count`,
   `Step`, `lattice`, `coor`, `numIons`, `varcomp`, `atomType`, `dimension`, `abinitioCode`,
   `spin`, `pressure`, `Kpoints`) and copies `Specific/userInput_<step>` to `usercode.in`.
+- A relaxation plus a property evaluation is **one** 10.6 stage with one wrapper command,
+  not a chain of code-99 stages. See [`custom-objectives.md`](custom-objectives.md).
 
 ## Defaults that surprise people
 

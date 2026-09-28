@@ -15,11 +15,18 @@
 Record the full patch-level version when possible. Never combine a 10.6-only INPUT
 keyword with a 10.5 executable and then debug it as a scheduler problem.
 
-Code `99` is the arbitrary-external-engine stage. On 10.6 it is an ordinary entry in
-`abinitioCode` — EX38 ships `3 3 3 3 99` with a five-line `commandExecutable` — and the value
-USPEX reads back comes from `Specific/user_property_calculator.py`, not from USPEX parsing the
-engine's output. On stock 10.5 the same slot exists but requires a patched installation; see
-[`custom-objectives.md`](custom-objectives.md).
+Code `99` is the arbitrary-external-engine stage. On stock 10.5 the slot exists
+but requires a patched installation (see [`custom-objectives.md`](custom-objectives.md)).
+On 10.6 it is a native, ordinary entry in `abinitioCode`: one entry per stage, one
+matching `commandExecutable` line, and the value USPEX reads back comes from
+`Specific/user_property_calculator.py`, not from USPEX parsing the engine's output.
+
+A relaxation followed by a property evaluation is **one** 10.6 stage, not two: the
+wrapper named in `commandExecutable` calls both calculators in order inside the same
+structure directory. Chaining code-99 stages and passing `geom.out`/`energy.txt`
+between them is the 10.5 pattern and silently loses the objective on 10.6 — see
+[`custom-objectives.md`](custom-objectives.md) for the mechanism, the reproduced
+symptoms, and a working adapter.
 
 ## Environment and runtime expectations
 
