@@ -84,6 +84,15 @@ USPEX -r
 `still_reading` is written while an instance is reading the state; removing it while a driver or
 scheduler job is alive makes two processes fight over the same `*.mat` files.
 
+`still_running` is the **different** marker written when an invocation enters the MATLAB engine
+phase and removed when it returns; its own text says it is present either because MATLAB is still
+running or because MATLAB exited with an error. An invocation killed inside that phase leaves it
+behind for good, so a stale copy is evidence to collect and then clear, not a lock and not proof
+that the run is alive. Clear it together with `still_reading` in branch A, on the same no-live-writer
+proof. Before choosing a branch at all, confirm the run really is dead rather than inside the long
+silent phase every generation has — `references/liveness.md`, or
+`python scripts/check_run_liveness.py RUN --sample-seconds 90`.
+
 ### B. Pick-up restart from a chosen generation (`pickUpYN = 1`)
 
 Use this when you deliberately want to re-launch from a named generation of a named `results`
@@ -161,11 +170,14 @@ not cleared (the `--clean` step of mode B was skipped); it is not a scheduler or
 ### Restart checklist
 
 1. confirm no other driver loop and no scheduler job of this run is still active;
-2. record what is present: `USPEX_IS_DONE`, `OUTPUT.txt`, `results*/`, `still_reading`, `*.mat`;
+2. confirm the run is dead rather than inside a long quiet phase
+   (`python scripts/check_run_liveness.py RUN --sample-seconds 90`), and record what is present:
+   `USPEX_IS_DONE`, `OUTPUT.txt`, `results*/`, `still_reading`, `still_running`, `*.mat`;
 3. confirm the source `results<f>/generation<g>/` is complete and that `results<f>` is this run;
 4. inspect `results<f>/Warnings` and the root `POSCAR`/`log` **before** `--clean` deletes them;
-5. pick the mode: A (continue in place → remove `still_reading`), B (`--clean`, then
-   `pickUpYN = 1` with `pickUpGen`/`pickUpFolder`), C (`--clean` alone for a fresh start);
+5. pick the mode: A (continue in place → remove `still_reading` and the stale `still_running`),
+   B (`--clean`, then `pickUpYN = 1` with `pickUpGen`/`pickUpFolder`), C (`--clean` alone for a
+   fresh start);
 6. verify the executable release and `Submission/` scripts have not changed;
 7. preserve the current `INPUT.txt`, `Specific/`, and any patch/model fingerprints;
 8. run one foreground `USPEX -r`; `USPEX IS DONE!` means the done marker/state was not cleared;
@@ -179,6 +191,9 @@ wrappers may embed absolute paths even if core USPEX state is movable.
 
 ```text
 USPEX runner stopped
+├─ engine process alive but artefact/IO frozen for many of this run's own generation cycles
+│     → dead loop: read log/nohup/Warnings, report the cause, then branch A (state intact)
+│       or branch B (state suspect / failure reproduces) — references/liveness.md
 ├─ scheduler jobs still active → restart only the driver; do not resubmit jobs
 ├─ jobs terminal, outputs valid → run USPEX -r once (removing still_reading) and verify ingestion
 ├─ jobs terminal, outputs missing → diagnose engine/submission; preserve failed dirs

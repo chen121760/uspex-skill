@@ -13,6 +13,18 @@ energies and missing per-structure outputs, attributes scheduler jobs to this di
 workdir, and reports concurrent engine/driver processes. Use the table below when the verdict
 says to intervene, or when the numbers look scientifically wrong.
 
+`--stale-minutes` is a fixed constant, and a search whose generation cycle takes hours is legitimately
+silent for much longer than any constant. Before treating `stalled` as a death certificate:
+
+```bash
+python scripts/check_run_liveness.py RUN --sample-seconds 90
+```
+
+It measures the run's own generation cadence from `results*/generation*` mtimes, samples the engine's
+`rchar`/`wchar` and CPU, and returns `done` / `working` / `stuck` / `stopped` / `unknown` with the
+next actions. The reasoning, the false-positive traps (pinned core, `still_running`, buffered log),
+the interpretations to report, and the recovery branches are in `references/liveness.md`.
+
 | Symptom | Likely cause | Checks | Fix |
 |---|---|---|---|
 | `Unable to import numpy and scipy, Random Topology will be skipped!`, `ModuleNotFoundError: No module named 'numpy'`, or `ImportError: randomTopology` | the `python3` on `PATH` is not the intended helper interpreter, has no shipped `.so` for its version, or lacks numpy/scipy | `python scripts/check_uspex_env.py RUN_DIR --uspex-version 10.5`; `ls FunctionFolder/randomTopology.cpython-*.so` | select an interpreter matching a shipped tag (10.5.0 ships 3.6–3.9) and install numpy/scipy/spglib into it; re-run the pilot before trusting topology-based structures |
@@ -28,6 +40,10 @@ says to intervene, or when the numbers look scientifically wrong.
 | Jobs queue forever (`PENDING`, reason `Resources`/`QOSMaxJobsPerUser`/`AssocGrpNodeLimit`; PBS `Q`/`H`/`W`) | request exceeds queue limits, account over quota, or `numParallelCalcs` over-subscribes the fairshare window | `squeue -u $USER -o "%.10i %.9P %.8T %.10r %.10M"`, `sacctmgr show assoc`; `qstat -f JOBID`, `qstat -q`, `showq -u $USER` | lower nodes/tasks/GPUs/walltime or `numParallelCalcs`, or move to a queue whose limits fit; re-derive the request from `sinfo`/`qstat -q` |
 | Jobs submit but job ID is missing | brittle `sbatch`/`qsub` parsing | capture exact submit stdout/stderr | use regex/parser matching the site's real output |
 | USPEX waits forever after job ends | terminal state treated as active; stale ID; callback crashed | call `checkStatus` manually, inspect queue/accounting | classify states explicitly and always emit callback marker/value |
+| Engine at 100 % CPU for hours, `log` frozen, `uspex_status.py` says `stalled` | normal long MATLAB phase (ranking + evolving the next generation, measured at ~21 min of complete file silence) versus a real dead loop — silence alone cannot separate them | `python scripts/check_run_liveness.py RUN --sample-seconds 90`; compare the newest artefact's age with this run's own `results*/generation*` cadence; read `/proc/PID/io` twice | if artefacts and I/O move, leave it alone and re-check around the cadence; only if I/O is frozen past ~3 cadences with no job of this run is it a dead loop → `references/liveness.md` |
+| `still_running` present, but no engine/driver/helper of that run is alive | stale marker from an invocation that was killed or died inside the MATLAB engine phase — it is written on entry and removed on return, so it is not a hang indicator | process list filtered by cwd (`check_run_liveness.py` prints it), scheduler, driver log | clear it only in the continue-in-place branch (`rm -f still_running still_reading`) after the no-live-writer proof, then one foreground `USPEX -r`; see `references/liveness.md` and `references/seeds-restarts.md` |
+| `MATLAB:badsubscript` with a trace through `SoftModeMutation_*` → `EA_*` → `Start` → `USPEX` in `nohup.out`/driver log, engine then spins forever | the MATLAB side died on a soft-mode mutation of a structure it could not handle; the engine waits for a reply that never arrives | the trace, `Warnings`, the helper's stderr, `still_running`, `/proc/PID/io` frozen | preserve evidence, report the interpretation, then branch A (continue in place); if it reproduces on the same operator, branch B (`USPEX --clean` + `pickUpYN`/`pickUpGen`/`pickUpFolder`) from a generation before the offending structure |
+| Driver log ends with no new invocation while its jobs are already terminal | the driver exited between invocations (wrapper non-zero exit, SSH death, missing loop) | driver log tail (`exit=`), process list, `STOP_USPEX_LOOP` | fix the wrapper and re-attach the loop; this is a restart, not a kill |
 | USPEX advances before engine completes | status callback interprets temporary scheduler error as terminal | compare timestamps, queue, accounting | distinguish command failure from “job absent”; retry transient errors |
 | Job leaves queue, result is absent | engine crash, walltime, OOM, bad module/launcher | scheduler accounting and engine stdout/stderr | fix resource or engine input; never synthesize a result |
 | Code-99 structure repeats forever | `geom.out` or `energy.txt` missing/malformed; `userCalcFitness.py` flag 0 never reports done | atom count/cell, finite energy, callback value, stale files | make every stage write fresh geometry and energy atomically; test flags 0 and 1 directly |

@@ -57,6 +57,19 @@ behaviours matter when reading its output: a results copy without `USPEX_IS_DONE
 reported as done when `OUTPUT.txt` records the finish, and a value it cannot establish is reported
 as missing evidence instead of a zero.
 
+Its `--stale-minutes` is a fixed constant, and a search whose generation cycle takes hours is
+legitimately silent for far longer than that: after the `Calculating fitness` line a healthy run can
+spend ~20 min evolving the next generation without touching disk, and the observed cycle across
+sibling runs of one project ranged from 1.5 h to 3.7 h. So before acting on `stalled`, run
+
+```bash
+python scripts/check_run_liveness.py RUN --sample-seconds 90    # 0 done, 1 working, 2 stuck, 3 stopped, 4 unknown
+```
+
+which measures this run's own cadence from `results*/generation*` and samples the engine's I/O, and
+read `references/liveness.md` for the false-positive traps (pinned core, idle `matlab_helper`,
+leftover `still_running`, buffered driver log) and for the recovery branches to offer the user.
+
 Inspect throughout the run:
 
 - `OUTPUT.txt`: generation progress, operator yields, best structures (it does **not** record

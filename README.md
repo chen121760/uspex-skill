@@ -13,6 +13,7 @@ restarting it safely, and analysing what came out.
 | Schedulers | Slurm/PBS queue discovery (including which queues your account is actually admitted to), a cluster-guide lookup, queue dry runs, and site-neutral `Submission/` callback templates |
 | Running | Why one `USPEX -r` is not a finished search, `USPEX_IS_DONE`, a detachable driver loop, and concurrency accounting that matches what the scheduler really tracks |
 | Restarts | Seeds, seed-selected generations, `--clean` + `pickUpYN`/`pickUpGen`/`pickUpFolder`, and how to prove no writer is still active |
+| Liveness | Cadence-based triage of a quiet run — dead loop versus the long silent MATLAB phase every generation contains — plus the `still_running`/`still_reading` distinction, the interpretation to report, and the three recovery branches |
 | Custom objectives | Native 10.6 `x`/`y` properties and code `99`; the direction/sign convention (raw value written, negated copy displayed); the isolated 10.5 pattern for installations that must be preserved |
 | Analysis | Reading USPEX's real output files, per-file energy normalisation, failure sentinels, convex hulls, Pareto fronts, 2D/surface caveats, and a selection tool that packages only the structures a user asked for |
 
@@ -27,6 +28,7 @@ references/                  progressive disclosure — load only what the task 
   custom-objectives.md       x/y properties, code 99, the 10.5 custom pattern
   submission.md              queue discovery, Submission/ callbacks, cluster guide
   seeds-restarts.md          seeds, restarts, move/recover
+  liveness.md                dead run versus a long silent phase, and the recovery branches
   validation-analysis.md     preflight, hulls, Pareto fronts, structure packaging
   errors.md                  symptom → cause → fix
   resources.md               manuals, examples, companion tools, the cluster-guide convention
@@ -50,6 +52,7 @@ without an agent.
 | `preflight_uspex.py` | Static audit of a run directory before launch: blocks, stages, POTCAR/INCAR coverage, objectives, scheduler request |
 | `smoke_code99.py` | Exercise an external code-99 adapter: required fresh outputs, callback flags `0`/`1`/`101`/`102`, documented penalty sentinels, and the `geom.out` consumption hazard |
 | `uspex_status.py` | Judge a run from artefacts — done / running / intervene / unknown — attributing scheduler jobs by workdir and detecting a second writer |
+| `check_run_liveness.py` | Separate a dead loop from a long silent phase: measures the run's own generation cadence, samples engine I/O and CPU, and prints the evidence, the likely cause to report, and the next actions |
 | `extract_uspex_candidates.py` | Select structures by condition (composition, atom count, space group, volume, Pareto front, enthalpy/atom, hull distance, origin, convergence) into CSV + POSCAR with a per-field provenance manifest |
 | `package_uspex_run.py` | Preflight, then package a clean run (inputs, callbacks, driver, checkers) with a checksum manifest |
 
@@ -61,6 +64,7 @@ python scripts/check_uspex_env.py RUN_DIR --uspex-version 10.6
 python scripts/check_schedulers.py --workdir RUN_DIR --test-submit
 python scripts/preflight_uspex.py RUN_DIR --uspex-version 10.6
 python scripts/uspex_status.py RUN_DIR
+python scripts/check_run_liveness.py RUN_DIR --sample-seconds 90
 python scripts/extract_uspex_candidates.py RESULTS_DIR --list-fields
 ```
 

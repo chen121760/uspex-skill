@@ -37,6 +37,7 @@ from a chemically unrelated example.
 | Add seeds, seed selected generations, restart, move, or recover a run | `references/seeds-restarts.md` |
 | Audit before launch; analyze convex hulls, Pareto fronts, surfaces, and VASP results | `references/validation-analysis.md` |
 | Decide whether a run is finished, healthy, stalled or broken, and hand its results on | `scripts/uspex_status.py`; `references/validation-analysis.md` |
+| Decide whether a quiet run is dead or still inside a long structure-generation phase (pinned core, frozen log, `still_running` left behind), report the likely cause, and choose the recovery | `scripts/check_run_liveness.py`; `references/liveness.md` |
 | Package the structures that satisfy a user's condition out of a finished or running search | `scripts/extract_uspex_candidates.py`; `references/validation-analysis.md` |
 | Diagnose stalled structures, missing output, scheduler loops, or malformed objectives | `references/errors.md` |
 | Locate official manuals, examples, release notes, and companion tools | `references/resources.md` |
@@ -109,6 +110,15 @@ from a chemically unrelated example.
    sentinel energies, jobs attributed to this directory by workdir, and whether a second
    engine or driver is active. Treat a missing artefact as missing evidence, never as zero.
    Results bundles often omit `USPEX_IS_DONE`; completion is then inferred from `OUTPUT.txt`.
+   Its staleness threshold is a fixed constant, so before acting on `stalled` for a search whose
+   generation cycle is hours long, run
+   `python scripts/check_run_liveness.py RUN --sample-seconds 90`: it measures this run's **own**
+   generation cadence, samples the engine's I/O, and separates a dead loop from the long silent
+   MATLAB phase every generation contains. A pinned core, an idle `matlab_helper`, a leftover
+   `still_running`, and a queue with no job of this run are all normal mid-cycle; a dead run is
+   condemned by silence measured against its own cadence with no file **and** no I/O movement.
+   Then report the likely cause to the user and choose a recovery branch before killing anything —
+   `references/liveness.md`.
 11. Package what the user asks for instead of exporting everything:
     `python scripts/extract_uspex_candidates.py RESULTS_DIR --select 'CONDITION' --out DIR`
     selects by geometry (composition, atom count, space group, volume, lattice), by table
@@ -134,6 +144,13 @@ from a chemically unrelated example.
 - A single `USPEX -r` is one batch of work, not a completed search. Completion is
   `USPEX_IS_DONE`; never report a search as finished from an exit status alone, and never
   run the driver loop from a shell that an SSH disconnect will kill.
+- A busy engine is not evidence of progress. The evolutionary algorithm runs *inside* `uspex.x`
+  (embedded MATLAB runtime), so one core at 100 %, an idle `matlab_helper`, a leftover
+  `still_running`, and a queue holding no job of this run are all normal between artefacts, and the
+  driver log is both truncated per invocation and block-buffered. Decide liveness against the run's
+  own generation cadence plus file/I/O movement (`scripts/check_run_liveness.py`), never against a
+  fixed staleness constant, and never kill or restart a run before proving no engine, driver,
+  helper or scheduler job of that run is still alive. See `references/liveness.md`.
 - A larger-is-better custom property is written as the raw positive value; the `Individuals`
   column shows its negated copy so that every objective shares one internal orientation, and
   the ranking is derived from that copy. Judge the convention by comparing `P1.txt`/`MLProperties`
