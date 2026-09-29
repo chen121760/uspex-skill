@@ -21,6 +21,7 @@ dist/
 
 # Local state
 .work/
+.codex_tmp/
 __pycache__/
 *.pyc
 .DS_Store

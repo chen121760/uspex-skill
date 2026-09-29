@@ -1,6 +1,6 @@
 ---
 name: uspex
-description: Design, prepare, validate, run, restart, troubleshoot, and analyze USPEX 10.5/10.6 crystal-structure searches. Use for 3D bulk and 2D searches, fixed or variable composition including binary/ternary/quaternary 3D systems, surface reconstruction, VASP or code-99 relaxation stages, seeds, Slurm/PBS callbacks, repeated USPEX -r execution, native USPEX 10.6 x/y custom objectives through user_property_calculator.py, or migration of a documented USPEX 10.5 custom interface.
+description: Design, prepare, validate, run, restart, troubleshoot, and analyze USPEX 10.5/10.6 crystal-structure searches. Use for 3D bulk and 2D searches, fixed or variable composition including binary/ternary/quaternary 3D systems, surface reconstruction, VASP or code-99 relaxation stages, seeds, Slurm/PBS callbacks, repeated USPEX -r execution, native USPEX 10.6 x/y custom objectives through user_property_calculator.py, or the legacy USPEX 10.5 patched custom-property interface (userCalcFitness.py + calcElasticML.py, P1.txt-P7.txt, optType 1201-1207) and its migration to 10.6.
 ---
 
 # USPEX 10.5/10.6
@@ -32,7 +32,8 @@ from a chemically unrelated example.
 | Prepare a machine, install/move a release, or debug imports, skipped random topology, helper `ModuleNotFoundError`, or an immediate exit | `references/environment.md` |
 | Choose calculation type; build `INPUT.txt`; map binary/ternary/quaternary blocks; configure VASP stages | `references/running.md` |
 | Look up a keyword's default, units, or legal values before writing `INPUT.txt`; explain why a run is shorter or costlier than expected | `references/input-parameters.md` |
-| Add arbitrary objectives, connect MatterSim or another external optimizer, define the code-99 file contract, or migrate a 10.5 custom property | `references/custom-objectives.md` |
+| Add arbitrary `x`/`y` objectives on 10.6, connect MatterSim or another external optimizer, or define the 10.6 code-99 file contract | `references/custom-objectives.md` |
+| Reproduce or repair a **USPEX 10.5** custom-property interface (patched `userCalcFitness.py` + patched `calcElasticML.py`, `P1.txt`…`P7.txt`, `optType 1201`–`1207`), or migrate one to 10.6 | `references/custom-objectives-105.md`; then `references/custom-objectives.md` for the migration |
 | Build or debug Slurm/PBS `Submission/`; find out which queues/partitions exist and which your account may use; read or update the cluster's `~/.cluster-agents.md`; run a persistent `USPEX -r` loop | `scripts/check_schedulers.py`; `references/submission.md`; `references/resources.md` |
 | Add seeds, seed selected generations, restart, move, or recover a run | `references/seeds-restarts.md` |
 | Audit before launch; analyze convex hulls, Pareto fronts, surfaces, and VASP results | `references/validation-analysis.md` |
@@ -66,24 +67,46 @@ from a chemically unrelated example.
    verified facts with `--facts-out` so the next session starts from the guide.
 4. Start from the closest example shipped with that executable: run `USPEX -e`,
    inspect the description, then copy with `USPEX -c NUM` in a clean directory.
-5. Design the composition space, objective directions, relaxation stages, and
+5. Route by version as soon as a custom property or objective is requested. Confirm the
+   release from the installed tree, never from the user's statement alone.
+
+   ```text
+   user wants a custom property / objective
+                 |
+   what release is actually installed?
+        /                     \
+    10.6                     10.5
+      |                        |
+   native x/y callback     legacy patched workflow
+   user_property_calculator.py   userCalcFitness.py + calcElasticML.py
+      |                        |
+   references/custom-objectives.md   references/custom-objectives-105.md
+   ```
+
+   On 10.6, use the native callback and `references/custom-objectives.md`; do not carry the
+   10.5 `P*.txt` plumbing or the `1201`-`1207` remap into it.
+   On 10.5, a custom objective needs an isolated **patched** installation:
+   changing `INPUT.txt` alone cannot repurpose `1201`, because in stock 10.5 that code has an
+   official machine-learning elastic-property meaning. Work through
+   `references/custom-objectives-105.md`: collect the user's stock and patched sources first,
+   build the slot map, patch minimally, and validate in layers. Never mix the two mechanisms,
+   and never assume the `1201`–`1207` channel is custom in an unpatched tree.
+6. Design the composition space, objective directions, relaxation stages, and
    scheduler contract before editing files.
    Check every default and legal value against the installed tree's own parameter
    dictionary, as summarized in `references/input-parameters.md`, instead of assuming
    the numbers of a copied example.
-   For a custom objective on stock 10.5, first create and validate an isolated
-   patched installation; changing `INPUT.txt` alone cannot repurpose `1201`.
    Express every objective direction explicitly: name, units, larger/smaller-is-better, the sign
    actually written into the property file, and the output file that carries it. A
    larger-is-better property is written as the raw positive value.
-6. Keep the standard layout: `INPUT.txt`, `Specific/`, `Submission/`, and optional
+7. Keep the standard layout: `INPUT.txt`, `Specific/`, `Submission/`, and optional
    `Seeds/`; include `POSCAR_SUBSTRATE` only for surface modes.
-7. Run `python scripts/preflight_uspex.py RUN_DIR --uspex-version 10.5|10.6`.
+8. Run `python scripts/preflight_uspex.py RUN_DIR --uspex-version 10.5|10.6`.
    Resolve every error, review every warning, and read the informational findings about
    database/topology operators and scheduler queue depth. Use
    `scripts/package_uspex_run.py` when moving a run: it preflights first and packages the
    INPUT, runtime helpers, a checksum manifest, and the complete environment checks together.
-8. On 10.6, keep the relaxation and objective interfaces distinct. `abinitioCode` and
+9. On 10.6, keep the relaxation and objective interfaces distinct. `abinitioCode` and
    `commandExecutable` define the relaxation stages; `Specific/user_property_calculator.py`
    returns completion/enthalpy for code 99 and returns custom `x`/`y` values for flags `101`/`102`.
    The callback may calculate `x` directly from the final relaxed structure or parse a
@@ -100,7 +123,7 @@ from a chemically unrelated example.
    Then test one scheduler callback path with a reduced throwaway USPEX input
    (`numParallelCalcs = 1`, tiny population). Do not use the full production initial
    population as the foreground smoke test.
-9. Understand the run loop before starting a search: the run only finishes when the
+10. Understand the run loop before starting a search: the run only finishes when the
    directory contains `USPEX_IS_DONE`, so `USPEX -r` must be repeated. Start
    `assets/run_uspex_loop.sh` (or write an equivalent driver if the site has none) for the
    production directory only after the reduced foreground pass established INPUT parsing,
@@ -112,7 +135,7 @@ from a chemically unrelated example.
    still active, then continue in place (remove `still_reading`) or, after `USPEX --clean`,
    re-launch from a completed generation of a chosen `results` folder with `pickUpYN = 1`
    plus the `pickUpGen`/`pickUpFolder` scalars —?see `references/seeds-restarts.md`.
-10. Judge a running search from artefacts, not from an exit status or a queue snapshot:
+11. Judge a running search from artefacts, not from an exit status or a queue snapshot:
    `python scripts/uspex_status.py RUN` returns 0 done, 1 running, 2 intervene
    (stalled/failed), 3 unknown, and reports generations completed, structures finished,
    sentinel energies, jobs attributed to this directory by workdir, and whether a second
@@ -127,14 +150,14 @@ from a chemically unrelated example.
    condemned by silence measured against its own cadence with no file **and** no I/O movement.
    Then report the likely cause to the user and choose a recovery branch before killing anything —
    `references/liveness.md`.
-11. Package what the user asks for instead of exporting everything:
+12. Package what the user asks for instead of exporting everything:
     `python scripts/extract_uspex_candidates.py RESULTS_DIR --select 'CONDITION' --out DIR`
     selects by geometry (composition, atom count, space group, volume, lattice), by table
     values (Pareto front, enthalpy per atom, hull distance, objective, origin) or by
     convergence, and writes a CSV plus a manifest that records which file supplied each
     field. Run `--list-fields` first; `--dry-run` counts matches without writing. A
     condition on `Individuals` must name a generation, because its ids repeat per generation.
-12. Validate the search outputs and independently reconverge shortlisted structures.
+13. Validate the search outputs and independently reconverge shortlisted structures.
 
 ## Hard guardrails
 
@@ -165,9 +188,13 @@ from a chemically unrelated example.
   independently checked raw value, and `ParetoRankingInGeneration`; never negate a
   larger-is-better value to "fix" an apparent inversion. Do not join per-generation output
   files by row or ID when attributing values to structures.
-- The USPEX 10.5 custom multi-objective method in this skill is a clean-room
-  interface description. Never copy, emit, or reconstruct the private teaching
-  files or their implementation verbatim.
+- In 10.5, `optType` values `1201`-`1207` have official machine-learning
+  elastic-property meanings, and the value routed there comes from the third-party
+  `FunctionFolder/calcElasticML.py`. Reusing one as a private channel means replacing
+  that file, so the convention is private, not official.
+- The USPEX 10.5 legacy custom-property method in this skill is a clean-room interface
+  description. Never copy, emit, or reconstruct the private teaching files or their
+  implementation verbatim; describe the pattern and generate fresh reference code.
 - Prefer native USPEX 10.6 `x`/`y` properties and official code `99`. Use the 10.5
   patch pattern only when the installed 10.5 environment must be preserved.
 - In 10.6, stage count belongs to the relaxation design, not to the custom-property
@@ -176,9 +203,9 @@ from a chemically unrelated example.
   build. Return `x`/`y` through the callback; do not assume that an earlier stage's private
   files survive into a later stage unless the installed release and adapter explicitly define
   that transfer.
-- In 10.5, `optType` values `1201`-`1207` have official elastic-property meaning.
-  Reusing one as a private channel requires an isolated, documented installation;
-  never apply that convention to an unpatched executable.
+- A custom objective on stock 10.5 always needs an isolated, validated **patched**
+  installation; changing `INPUT.txt` alone cannot repurpose `1201`. Never point a patched
+  workflow at a shared or unpatched executable. See `references/custom-objectives-105.md`.
 - A code-99 stage is an explicit file contract. On native 10.6, `geom.out` and
   `energy.txt` are the usual relaxed-structure/enthalpy outputs for an external optimizer;
   custom `x`/`y` values come from `Specific/user_property_calculator.py`. A private

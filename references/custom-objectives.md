@@ -170,10 +170,23 @@ Before production:
 
 ## Legacy USPEX 10.5
 
-Stock 10.5 does not provide the native 10.6 `x`/`y` callback route. A private 10.5
-installation may map numbered files into `1201`-`1207`, but those identifiers have official
-elastic-property meanings in stock 10.5. Keep any such patch isolated and documented; do not
-carry its numbered-file convention into a 10.6 design.
+Stock 10.5 does not provide the native 10.6 `x`/`y` callback route. In stock 10.5,
+`optType` values `1201`-`1207` are the official machine-learning elastic-property channels
+(bulk/shear/Young modulus, Poisson's ratio, Pugh ratio, Vickers hardness, fracture
+toughness), served by the third-party `FunctionFolder/calcElasticML.py`.
+
+A private 10.5 installation may nevertheless be patched into a custom-property channel:
+replace that calculator with an adapter that reads one numbered scalar file per slot and
+prints **one** `<CALLRESULT>` line carrying the fixed-order property values, and patch
+`FunctionFolder/Tool/userCalcFitness.py` to transport the `code 99` stage's
+completion/enthalpy through `geom.out`/`energy.txt`. Structure the patch as two independent
+patch points and keep the whole thing isolated and documented.
+
+That is a private convention, not an official API. Read
+[`custom-objectives-105.md`](custom-objectives-105.md) before touching a 10.5 tree: it gives
+the verified patch, the slot-file contract, the `1201`-`1207` mapping evidence, the layered
+validation ladder, and the provenance record. Confirm the mapping against the user's own
+source before editing, and never carry the numbered-file convention into a 10.6 design.
 
 For a migration, preserve only the science:
 

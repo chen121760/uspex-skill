@@ -175,7 +175,8 @@ Confirm `[N]` semantics in the installed manual and outputs. The group workflows
 use it as the generation at which the multi-objective phase begins. Never use
 `1201` as a custom property on an unpatched 10.5 installation; its official
 meaning is an ML elastic property. Arbitrary 10.6 properties are covered in
-`references/custom-objectives.md`.
+`references/custom-objectives.md`; a patched 10.5 custom-property interface is
+described in `references/custom-objectives-105.md`.
 
 ## Variation-operator mix
 

@@ -1,0 +1,129 @@
+Annotated INPUT.txt skeleton for a patched USPEX 10.5 custom-property run.
+This file is DOCUMENTATION, not a runnable input: replace every <...> placeholder,
+delete the comments (USPEX reads this file positionally), and check each keyword
+against your own installed release. See references/custom-objectives-105.md.
+
+Variants of the objective block, in increasing order of ambition:
+
+  (a) one custom slot only
+      % optType
+      1201
+      % EndOptType
+
+  (b) enthalpy + one custom slot as a two-objective Pareto search
+      % optType
+      1 1201
+      % EndOptType
+
+  (c) the same, but start with enthalpy only and switch to Pareto later
+      % optType
+      1 1201 [<switch generation>]
+      % EndOptType
+      The bracketed number is the generation at which the Pareto stage begins; the
+      earlier generations optimize enthalpy alone. That is stock USPEX behaviour, not
+      a patched one.
+
+  (d) record every slot without searching on it
+      % optType
+      1 1201 [<very large generation number>]
+      % EndOptType
+      All values are still written to MLProperties, so a cheap property evaluated in the
+      code-99 stage is logged even when it is not an objective.
+
+Which code selects which slot is the positional convention 12<i> <-> slot <i>. Confirm
+it against the user's own source before relying on it (references/custom-objectives-105.md,
+section 9).
+
+**************************************************************************
+*      TYPE OF RUN AND SYSTEM                                            *
+**************************************************************************
+USPEX : calculationMethod
+<calculationType>   : calculationType (301/302 for variable composition)
+<0 or 1>            : AutoFrac
+
+% symmetries
+<symmetry range legal for this dimensionality>
+% endSymmetries
+
+% optType
+<objective block from above>
+% EndOptType
+
+% atomType
+<element symbols>
+% EndAtomType
+
+% numSpecies
+<one row per species: minimum count, then whether the count is variable>
+% EndNumSpecies
+
+**************************************************************************
+*               POPULATION                                               *
+**************************************************************************
+<populationSize>    : populationSize
+<initialPopSize>    : initialPopSize
+<numGenerations>    : numGenerations
+<stopCrit>          : stopCrit
+<0 or 1>            : reoptOld
+
+**************************************************************************
+*       FIRST VAR. COMP. GENERATION (variable composition only)           *
+**************************************************************************
+<firstGeneMax>      : firstGeneMax
+<minAt>             : minAt
+<maxAt>             : maxAt
+
+**************************************************************************
+*          VARIATION OPERATORS                                           *
+**************************************************************************
+<fracGene>          : fracGene
+<fracTopRand>       : fracTopRand
+<fracRand>          : fracRand
+<fracAtomsMut>      : fracAtomsMut
+<fracTrans>         : fracTrans
+<fracLatMut>        : fracLatMut
+
+**************************************************************************
+*   DETAILS OF AB INITIO CALCULATIONS                                    *
+**************************************************************************
+% abinitioCode
+<one entry per stage; the LAST entry is 99 for the patched user-code stage>
+% ENDabinit
+
+% KresolStart
+<one k-point resolution per DFT stage>
+% Kresolend
+
+% commandExecutable
+<one command per stage, in order; one command per line>
+
+  The line for the 99 stage is the one that must obey the user-code contract:
+
+      <interpreter> <producer script> > log
+
+  * the producer runs with the structure directory as its working directory;
+  * it reads geom.in (POSCAR, written by USPEX);
+  * it writes geom.out (POSCAR, the structure USPEX will record) and energy.txt
+    (one number, the stage enthalpy);
+  * it may also write the property slot files P1.txt ... P7.txt that the patched
+    calcElasticML.py adapter reads;
+  * use an absolute interpreter path: a wrapper that changes the working directory,
+    the executable, or stdout breaks the contract silently;
+  * if the stage is a decorated DFT run, keep the DFT stages before it and let this
+    last stage only extract and predict.
+
+  CRITICAL: energy.txt is consumed and deleted by the patched userCalcFitness.py when
+  USPEX asks for the energy. If a later step needs the value, the producer must keep its
+  own copy under a different name.
+% EndExecutable
+
+<whichCluster>      : whichCluster (0 no job script, 1 local submission, 2 remote)
+<numParallelCalcs>  : numParallelCalcs
+<ExternalPressure>  : ExternalPressure (GPa)
+
+**************************************************************************
+*   RESTART                                                              *
+**************************************************************************
+0     : pickUpYN
+0     : pickUpGen
+0     : pickUpFolder
