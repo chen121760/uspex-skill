@@ -43,12 +43,11 @@ from pathlib import Path
 
 Path("geom.out").write_text(Path("geom.in").read_text(encoding="utf-8"), encoding="utf-8")
 Path("energy.txt").write_text("-12.5\\n", encoding="utf-8")
-Path("P1.txt").write_text("-10.0\\n", encoding="utf-8")
-shutil.copyfile("geom.out", "relaxed_geom.out")
+shutil.copyfile("geom.out", "relaxed_for_property.vasp")
 """
 
 
-def preserving_callback(preserved: str = "relaxed_geom.out") -> str:
+def preserving_callback(preserved: str = "relaxed_for_property.vasp") -> str:
     """Callback wrapper that keeps a geometry copy for the property path.
 
     It also refuses to run while ``geom.out`` still exists, so a passing
@@ -74,7 +73,7 @@ def arguments(
     callback: str = "user_property_calculator.py",
     penalty: list[float] | None = None,
     consume_geom_out: bool = False,
-    preserved: str = "relaxed_geom.out",
+    preserved: str = "relaxed_for_property.vasp",
 ) -> argparse.Namespace:
     return argparse.Namespace(
         run_dir=root,
@@ -83,7 +82,7 @@ def arguments(
         python=Path(sys.executable),
         step=1,
         property_flags=[101, 102],
-        required_file=["geom.out", "energy.txt", "P1.txt"],
+        required_file=["geom.out", "energy.txt"],
         require_fresh=False,
         min_species=min_species,
         geom_input="geom.in",
@@ -99,7 +98,6 @@ class SmokeCode99Tests(unittest.TestCase):
         (root / "geom.in").write_text(MIXED_POSCAR, encoding="utf-8")
         (root / "geom.out").write_text(MIXED_POSCAR, encoding="utf-8")
         (root / "energy.txt").write_text("-12.5\n", encoding="utf-8")
-        (root / "P1.txt").write_text("-10.0\n", encoding="utf-8")
         (root / "user_property_calculator.py").write_text(CALLBACK, encoding="utf-8")
 
     def write_callback(self, root: Path, source: str) -> None:
@@ -200,7 +198,7 @@ class SmokeCode99Tests(unittest.TestCase):
             result = run_smoke(arguments(root, consume_geom_out=True))
             self.assertEqual(result["status"], "pass")
             self.assertTrue(result["consume_geom_out"])
-            self.assertEqual(result["preserved_file"]["name"], "relaxed_geom.out")
+            self.assertEqual(result["preserved_file"]["name"], "relaxed_for_property.vasp")
             self.assertEqual(result["preserved_file"]["species_count"], 2)
             self.assertEqual(result["callback_values"]["102"], 225.0)
             self.assert_geom_out_restored(root)
@@ -226,7 +224,7 @@ class SmokeCode99Tests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             self.make_tree(root)
-            self.write_callback(root, preserving_callback("relaxed_geom.out"))
+            self.write_callback(root, preserving_callback("relaxed_for_property.vasp"))
             with self.assertRaisesRegex(SmokeFailure, "no preserved geometry copy"):
                 run_smoke(arguments(root, consume_geom_out=True, preserved="other_geom.out"))
             self.assert_geom_out_restored(root)
@@ -293,8 +291,6 @@ class SmokeCode99Tests(unittest.TestCase):
             "geom.out",
             "--required-file",
             "energy.txt",
-            "--required-file",
-            "P1.txt",
             *extra,
         ]
 

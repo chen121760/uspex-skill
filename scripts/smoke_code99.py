@@ -23,7 +23,7 @@ Two real production failure modes are covered explicitly:
     ``FileNotFoundError``. This flag moves ``run_dir/geom.out`` aside to
     ``geom.out.consumed-by-smoke`` before the callback flags run, requires those
     flags to still succeed (which only holds when the calculator wrapper kept a
-    preserved copy), checks ``--preserved`` (default ``relaxed_geom.out``) as a
+    preserved copy), checks ``--preserved`` (default ``relaxed_for_property.vasp``) as a
     parseable VASP-5 POSCAR, and finally restores the original ``geom.out`` even
     on failure. It needs no ``--command``; without one, ``run_dir/geom.out`` must
     already exist, while with one the engine may create it (freshness is checked
@@ -48,7 +48,7 @@ CALLRESULT_RE = re.compile(
 
 GEOM_OUT = "geom.out"
 CONSUMED_GEOM_OUT = "geom.out.consumed-by-smoke"
-DEFAULT_PRESERVED = "relaxed_geom.out"
+DEFAULT_PRESERVED = "relaxed_for_property.vasp"
 # Tight comparison so a declared "-10" sentinel matches a reported "-10.0".
 PENALTY_ABS_TOL = 1e-9
 

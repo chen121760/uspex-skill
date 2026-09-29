@@ -1,6 +1,6 @@
 ---
 name: uspex
-description: Design, prepare, validate, run, restart, troubleshoot, and analyze USPEX 10.5/10.6 crystal-structure searches. Use for 3D bulk and 2D searches, fixed or variable composition including binary/ternary/quaternary 3D systems, surface reconstruction, VASP relaxation stages, seeds, Slurm/PBS Submission callbacks, repeated USPEX -r execution, USPEX 10.6 x/y custom properties and code 99 (one stage, one wrapper, user_property_calculator.py read-back), or migration and conceptual reproduction of a USPEX 10.5 custom multi-objective code-99 workflow (two chained stages, geom.out/energy.txt handshake).
+description: Design, prepare, validate, run, restart, troubleshoot, and analyze USPEX 10.5/10.6 crystal-structure searches. Use for 3D bulk and 2D searches, fixed or variable composition including binary/ternary/quaternary 3D systems, surface reconstruction, VASP or code-99 relaxation stages, seeds, Slurm/PBS callbacks, repeated USPEX -r execution, native USPEX 10.6 x/y custom objectives through user_property_calculator.py, or migration of a documented USPEX 10.5 custom interface.
 ---
 
 # USPEX 10.5/10.6
@@ -32,7 +32,7 @@ from a chemically unrelated example.
 | Prepare a machine, install/move a release, or debug imports, skipped random topology, helper `ModuleNotFoundError`, or an immediate exit | `references/environment.md` |
 | Choose calculation type; build `INPUT.txt`; map binary/ternary/quaternary blocks; configure VASP stages | `references/running.md` |
 | Look up a keyword's default, units, or legal values before writing `INPUT.txt`; explain why a run is shorter or costlier than expected | `references/input-parameters.md` |
-| Add arbitrary objectives, external MatterSim/Prophet-like optimization, or reproduce the 10.5 custom pattern; decide how many code-99 stages a `relax + property` chain needs | `references/custom-objectives.md` |
+| Add arbitrary objectives, connect MatterSim or another external optimizer, define the code-99 file contract, or migrate a 10.5 custom property | `references/custom-objectives.md` |
 | Build or debug Slurm/PBS `Submission/`; find out which queues/partitions exist and which your account may use; read or update the cluster's `~/.cluster-agents.md`; run a persistent `USPEX -r` loop | `scripts/check_schedulers.py`; `references/submission.md`; `references/resources.md` |
 | Add seeds, seed selected generations, restart, move, or recover a run | `references/seeds-restarts.md` |
 | Audit before launch; analyze convex hulls, Pareto fronts, surfaces, and VASP results | `references/validation-analysis.md` |
@@ -83,16 +83,20 @@ from a chemically unrelated example.
    database/topology operators and scheduler queue depth. Use
    `scripts/package_uspex_run.py` when moving a run: it preflights first and packages the
    INPUT, runtime helpers, a checksum manifest, and the complete environment checks together.
-8. On 10.6, build the `relax + property` chain as **one** code-99 stage whose
-   `commandExecutable` runs a single wrapper that calls both calculators in order —
-   never as two or three chained code-99 stages. See
+8. On 10.6, keep the relaxation and objective interfaces distinct. `abinitioCode` and
+   `commandExecutable` define the relaxation stages; `Specific/user_property_calculator.py`
+   returns completion/enthalpy for code 99 and returns custom `x`/`y` values for flags `101`/`102`.
+   The callback may calculate `x` directly from the final relaxed structure or parse a
+   project-specific intermediate. USPEX does not require `P1.txt`.
+   Choose the number of stages from the intended relaxation chain; multiple stages are legal,
+   and every stage must have the matching command/input contract. See
    `references/custom-objectives.md`.
    Then test one deliberately mixed-composition structure when the custom property depends on
    more than one species. Use `scripts/smoke_code99.py` to run the external command and
-   verify required fresh outputs plus callback flags `0`, `1`, `101`, and optionally `102`.
+   verify the declared engine outputs plus callback flags `0`, `1`, `101`, and optionally `102`.
    Pass `--penalty` for every documented penalty sentinel so a smoke run cannot pass green
-   while the real property path was never exercised, and `--consume-geom-out` to prove a
-   geometry-derived property still resolves after USPEX consumes `geom.out`.
+   while the real property path was never exercised, and `--consume-geom-out` when the callback
+   uses a preserved copy of a code-99 relaxed geometry.
    Then test one scheduler callback path with a reduced throwaway USPEX input
    (`numParallelCalcs = 1`, tiny population). Do not use the full production initial
    population as the foreground smoke test.
@@ -155,35 +159,35 @@ from a chemically unrelated example.
   own generation cadence plus file/I/O movement (`scripts/check_run_liveness.py`), never against a
   fixed staleness constant, and never kill or restart a run before proving no engine, driver,
   helper or scheduler job of that run is still alive. See `references/liveness.md`.
-- A larger-is-better custom property is written as the raw positive value; the `Individuals`
+- A larger-is-better custom property is returned as its raw measured value; the `Individuals`
   column shows its negated copy so that every objective shares one internal orientation, and
-  the ranking is derived from that copy. Judge the convention by comparing `P1.txt`/`MLProperties`
-  (raw) with `Individuals` (negated), take the ranking from `ParetoRankingInGeneration`, and never
-  negate a larger-is-better value to "fix" an apparent inversion. Do not join per-generation
-  output files by row or ID when attributing values to structures.
+  the ranking is derived from that copy. Judge the convention from `optType`, the callback's
+  independently checked raw value, and `ParetoRankingInGeneration`; never negate a
+  larger-is-better value to "fix" an apparent inversion. Do not join per-generation output
+  files by row or ID when attributing values to structures.
 - The USPEX 10.5 custom multi-objective method in this skill is a clean-room
   interface description. Never copy, emit, or reconstruct the private teaching
   files or their implementation verbatim.
 - Prefer native USPEX 10.6 `x`/`y` properties and official code `99`. Use the 10.5
   patch pattern only when the installed 10.5 environment must be preserved.
-- In 10.6, `abinitioCode = 99` normally means **one** stage. A relaxation and a
-  property evaluation are two calls inside one wrapper program, not two chained
-  code-99 stages: USPEX asks for the property only after the last stage, so a
-  chained middle stage that loses its inputs silently deletes the objective instead
-  of failing. `optType` needs an explicit direction prefix (`1 max_x`/`1 min_x`); a
-  bare `x`/`y` aborts in `DetermineOptType` on the 10.6 build tested here.
-  Reproducing the 10.5 two-stage `geom.out`/`energy.txt` handshake on 10.6 is the
-  known failure mode — see `references/custom-objectives.md`.
+- In 10.6, stage count belongs to the relaxation design, not to the custom-property
+  interface. The installed EX38 demonstrates a mixed multi-stage chain ending in code 99.
+  `optType` needs an explicit direction prefix (`1 max_x`/`1 min_x`) on the tested 10.6
+  build. Return `x`/`y` through the callback; do not assume that an earlier stage's private
+  files survive into a later stage unless the installed release and adapter explicitly define
+  that transfer.
 - In 10.5, `optType` values `1201`-`1207` have official elastic-property meaning.
   Reusing one as a private channel requires an isolated, documented installation;
   never apply that convention to an unpatched executable.
-- A code-99 stage is an explicit file contract. In the audited 10.5 custom
-  interface, every stage must leave fresh `geom.out` and `energy.txt`; a property
-  stage must additionally leave its property file(s). On native 10.6 the contract is
-  whatever `Specific/user_property_calculator.py` reads, so that callback must check
-  its inputs strictly. Expected, scientifically invalid candidates may use
-  documented direction-aware penalty sentinels, but missing/stale outputs and
-  infrastructure failures must never become implicit zeros or apparent success.
+- A code-99 stage is an explicit file contract. On native 10.6, `geom.out` and
+  `energy.txt` are the usual relaxed-structure/enthalpy outputs for an external optimizer;
+  custom `x`/`y` values come from `Specific/user_property_calculator.py`. A private
+  intermediate is optional and project-defined. CalcFold directories may be reused, so
+  private intermediates must be overwritten atomically or tied to the current `geom.in`
+  with a digest/manifest. Do not blanket-delete USPEX-managed outputs; let USPEX manage its
+  files and make only the producer-owned contract unambiguous. Expected scientifically
+  invalid candidates may use documented direction-aware penalties, but infrastructure
+  failures must never become implicit zeros or apparent success.
 - Scheduler disappearance means only that the scheduler stopped tracking the job;
   it does not prove scientific success. Check the engine outputs.
 - Never rank unconverged VASP structures or mix energies computed with inconsistent

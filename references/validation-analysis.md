@@ -4,22 +4,22 @@
 
 ## Objective direction and not-joined tables
 
-For a larger-is-better custom property you write the **raw measured value**; the driver keeps a
-negated copy in `Individuals` purely so that every column shares one "smaller is better"
-orientation, and ranks from that copy. So judge the convention by comparing
-`P1.txt`/`MLProperties` (raw) with the `Individuals` column (negated), and take the ranking
-from `results1/ParetoRankingInGeneration`. Do not "repair" an apparently inverted objective by
-negating a larger-is-better value — that selects the worst candidates.
+For a larger-is-better custom property, the callback returns the **raw measured value**; the
+driver keeps a negated copy in `Individuals` purely so that every column shares one
+"smaller is better" orientation. Judge the convention from `optType`, an independent
+calculation of the callback value, and `results1/ParetoRankingInGeneration`. Do not “repair”
+an apparently inverted objective by negating the callback value — that selects the worst
+candidates.
 
 Per-generation output files are written by different parts of the driver and their
 per-individual IDs do **not** necessarily line up: one probe showed the value raw in
 `MLProperties`/`ParetoRankingInGeneration` and sign-flipped in `Individuals`, with rows
 attributable to different structures. Therefore:
 
-1. take the direction and the ranking from `ParetoRankingInGeneration` plus the `optType` block
+1. take the direction and ranking from `ParetoRankingInGeneration` plus the `optType` block
    in `Parameters.txt`;
-2. take structures with their energies/properties from the per-structure `CalcFold*`
-   directories and the stage logs written there;
+2. independently recompute custom properties for shortlisted structures from their relaxed
+   geometries; use per-structure manifests/logs when the project preserves them;
 3. treat `Individuals` only as a per-generation listing, never as a join key.
 
 ## Preflight gate
@@ -41,6 +41,8 @@ the static preflight below. Then manually verify:
 - scheduler resources × `numParallelCalcs` fit queue/account limits;
 - surface substrate or 2D vacuum geometry is visualized before launch;
 - one-structure end-to-end smoke test passed.
+- for code-99 geometry-derived objectives, callback provenance identifies the current
+  `geom.in` and the relaxed structure used for `x`/`y`; no numbered property file is assumed.
 
 ## Runtime evidence
 

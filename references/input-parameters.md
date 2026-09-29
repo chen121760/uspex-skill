@@ -173,8 +173,10 @@ belong here:
   USPEX hands the stage `geom.in` (POSCAR), `parameters.json` (keys include `symg`, `count`,
   `Step`, `lattice`, `coor`, `numIons`, `varcomp`, `atomType`, `dimension`, `abinitioCode`,
   `spin`, `pressure`, `Kpoints`) and copies `Specific/userInput_<step>` to `usercode.in`.
-- A relaxation plus a property evaluation is **one** 10.6 stage with one wrapper command,
-  not a chain of code-99 stages. See [`custom-objectives.md`](custom-objectives.md).
+- The relaxation chain and the custom-property callback are separate interfaces. Choose
+  `abinitioCode` stages from the relaxation method; calculate or extract `x`/`y` in
+  `user_property_calculator.py`. Numbered property files are optional private intermediates,
+  not a 10.6 requirement. See [`custom-objectives.md`](custom-objectives.md).
 
 ## Defaults that surprise people
 
