@@ -70,26 +70,32 @@ dimensionality you expect, before using that folder as a restart source.
 
 ### A. Continue the same run in place (no `pickUp`)
 
-The `*.mat` state already records the last completed generation, so this needs no `INPUT.txt`
-change; the run continues from where it stopped. This is the documented 10.5 behaviour: *"you do
-not need to change any settings (all information will be stored in the \*.mat files) ... it will be
-sufficient to remove the file `still_reading` and run USPEX again."*
+The `*.mat` state records the run's progress, so this needs no `INPUT.txt` change.
+For a stalled invocation, follow **Branch A — stop the loop, preserve state, probe once** in
+`references/liveness.md`: back up state/logs, stop the old loop and children, verify exit,
+preserve/move actual stale markers, run one `USPEX -r` in the original environment, then
+restore the original loop only after actual progress is confirmed.
+
+Marker names depend on the installation. The user's current installation has `still_running`
+and **no `still_reading`**. Older 10.5 documentation mentions `still_reading`; that historical
+recipe does not mean it must exist everywhere. Do not create or wait for an absent marker.
 
 ```bash
-# only once no job or driver of that run is still active
-rm -f still_reading
+# after backups and verification that the old loop, engine and helpers exited
+# recovery_dir is the backup directory prepared in references/liveness.md
+[ ! -e still_running ] || mv -- still_running "$recovery_dir/still_running.before-probe"
 USPEX -r
 ```
 
-`still_reading` is written while an instance is reading the state; removing it while a driver or
-scheduler job is alive makes two processes fight over the same `*.mat` files.
+If another installation actually creates `still_reading`, preserve and move that file only
+after the same no-live-writer verification. Never clear a live instance's marker.
 
 `still_running` is the **different** marker written when an invocation enters the MATLAB engine
 phase and removed when it returns; its own text says it is present either because MATLAB is still
 running or because MATLAB exited with an error. An invocation killed inside that phase leaves it
 behind for good, so a stale copy is evidence to collect and then clear, not a lock and not proof
-that the run is alive. Clear it together with `still_reading` in branch A, on the same no-live-writer
-proof. Before choosing a branch at all, confirm the run really is dead rather than inside the long
+that the run is alive. Preserve and move this actual stale marker after writers exit.
+Before choosing a branch at all, confirm the run really is dead rather than inside the long
 silent phase every generation has — `references/liveness.md`, or
 `python scripts/check_run_liveness.py RUN --sample-seconds 90`.
 
@@ -169,20 +175,20 @@ not cleared (the `--clean` step of mode B was skipped); it is not a scheduler or
 
 ### Restart checklist
 
-1. confirm no other driver loop and no scheduler job of this run is still active;
-2. confirm the run is dead rather than inside a long quiet phase
-   (`python scripts/check_run_liveness.py RUN --sample-seconds 90`), and record what is present:
-   `USPEX_IS_DONE`, `OUTPUT.txt`, `results*/`, `still_reading`, `still_running`, `*.mat`;
-3. confirm the source `results<f>/generation<g>/` is complete and that `results<f>` is this run;
-4. inspect `results<f>/Warnings` and the root `POSCAR`/`log` **before** `--clean` deletes them;
-5. pick the mode: A (continue in place → remove `still_reading` and the stale `still_running`),
-   B (`--clean`, then `pickUpYN = 1` with `pickUpGen`/`pickUpFolder`), C (`--clean` alone for a
-   fresh start);
-6. verify the executable release and `Submission/` scripts have not changed;
-7. preserve the current `INPUT.txt`, `Specific/`, and any patch/model fingerprints;
-8. run one foreground `USPEX -r`; `USPEX IS DONE!` means the done marker/state was not cleared;
-9. confirm the new `results<N>` folder's generation numbering and contents, then re-attach the
-   driver loop.
+1. Establish the actual stall/stop from generation progress, logs, optimizer jobs and this run's
+   cadence; manually check helper verdicts that count driver jobs or heartbeat I/O.
+2. Preserve all root MAT state, logs, original input/environment/scripts and the latest completed
+   generation before stopping; record the process tree and relevant scheduler job IDs.
+3. Stop only the original loop and surviving children; verify exit on the execution node, then
+   save a frozen state snapshot. Resolve outstanding optimizer jobs without duplicate submission.
+4. Choose A (move actual stale markers aside, keep state), B (`--clean` plus `pickUp*`), or C
+   (deliberate fresh start). B requires a verified completed source generation and preservation
+   of `Warnings` before cleaning. `still_reading` is absent on the user's installation.
+5. Use the original environment for one `USPEX -r`, capture output/exit status, and verify actual
+   structure/generation progress before restoring the original loop. A uses the existing results
+   folder; B/C deliberately creates a new attempt. If the probe fails or stalls again, keep the
+   loop stopped and diagnose the captured failure. `USPEX IS DONE!` requires checking whether
+   completion was real or a deliberate B/C restart omitted its clean step.
 
 Moving a run is safest only when all engine jobs are terminal. Remote modes and
 wrappers may embed absolute paths even if core USPEX state is movable.
@@ -195,7 +201,7 @@ USPEX runner stopped
 │     → dead loop: read log/nohup/Warnings, report the cause, then branch A (state intact)
 │       or branch B (state suspect / failure reproduces) — references/liveness.md
 ├─ scheduler jobs still active → restart only the driver; do not resubmit jobs
-├─ jobs terminal, outputs valid → run USPEX -r once (removing still_reading) and verify ingestion
+├─ jobs terminal, outputs valid → preserve/move actual stale markers, run USPEX -r once, verify ingestion
 ├─ jobs terminal, outputs missing → diagnose engine/submission; preserve failed dirs
 ├─ state/input mismatch → clone the run and repair with a documented migration
 └─ want to re-launch from a named generation/folder, source generation complete

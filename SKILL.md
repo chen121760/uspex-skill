@@ -131,8 +131,12 @@ from a chemically unrelated example.
    session. A large `initialPopSize` can spend minutes generating candidates before the first
    scheduler job appears, so judge startup from the durable driver log rather than an idle queue
    snapshot.
-   A resumed run uses the same loop: first prove that no job or driver of that run is
-   still active, then continue in place (remove `still_reading`) or, after `USPEX --clean`,
+   A resumed run uses the same loop. For a stalled invocation, preserve state/logs, stop
+   the original loop and children, verify their exit, move the actual stale `still_running`
+   aside, and run one `USPEX -r` in the original environment. Confirm actual progress
+   before restoring the loop; `references/liveness.md` gives the ordered procedure.
+   `still_reading` is version-dependent and absent from the user's current installation;
+   do not require or create it. Alternatively, after `USPEX --clean`,
    re-launch from a completed generation of a chosen `results` folder with `pickUpYN = 1`
    plus the `pickUpGen`/`pickUpFolder` scalars —?see `references/seeds-restarts.md`.
 11. Judge a running search from artefacts, not from an exit status or a queue snapshot:
@@ -148,7 +152,9 @@ from a chemically unrelated example.
    MATLAB phase every generation contains. A pinned core, an idle `matlab_helper`, a leftover
    `still_running`, and a queue with no job of this run are all normal mid-cycle; a dead run is
    condemned by silence measured against its own cadence with no file **and** no I/O movement.
-   Then report the likely cause to the user and choose a recovery branch before killing anything —
+   The helper may count the driver job as active or accept heartbeat bytes as progress;
+   corroborate its verdict with actual generation/optimizer output. Report the likely
+   cause and choose a recovery branch within existing user authorization —
    `references/liveness.md`.
 12. Package what the user asks for instead of exporting everything:
     `python scripts/extract_uspex_candidates.py RESULTS_DIR --select 'CONDITION' --out DIR`
@@ -180,8 +186,9 @@ from a chemically unrelated example.
   `still_running`, and a queue holding no job of this run are all normal between artefacts, and the
   driver log is both truncated per invocation and block-buffered. Decide liveness against the run's
   own generation cadence plus file/I/O movement (`scripts/check_run_liveness.py`), never against a
-  fixed staleness constant, and never kill or restart a run before proving no engine, driver,
-  helper or scheduler job of that run is still alive. See `references/liveness.md`.
+  fixed staleness constant. For an authorized recovery of a confirmed stalled run, preserve
+  state/logs, stop only that run's loop and children, then prove they exited before clearing
+  markers or restarting. See `references/liveness.md`.
 - A larger-is-better custom property is returned as its raw measured value; the `Individuals`
   column shows its negated copy so that every objective shares one internal orientation, and
   the ranking is derived from that copy. Judge the convention from `optType`, the callback's

@@ -25,8 +25,9 @@ Four properties of a real run make silence weak evidence. All four were observed
 3. **`still_running` is not a hang indicator.** USPEX writes it on entering the MATLAB engine
    phase and removes it when that invocation returns; its own text says it is present either
    because MATLAB is still running or because MATLAB exited with an error. An invocation that is
-   killed (or that dies) leaves it behind forever. `still_reading` is the different, documented
-   marker used by the restart gate (`references/seeds-restarts.md`).
+   killed (or that dies) leaves it behind forever. Marker names depend on the release/site:
+   `still_reading` appears in older 10.5 documentation but is absent from the user's current
+   installation. Its absence is normal; do not create it or wait for it.
 4. **The driver log is a poor heartbeat.** The usual driver does `date > log; USPEX -r >> log`, so
    the log is truncated at every invocation, and engine stdout redirected to a file is
    block-buffered. A rolled banner plus a changed size means "another invocation started"; silence
@@ -111,6 +112,15 @@ A useful sanity pair from the audited project: the dead run's last artefact was 
 (≈18× its own 1.9 h cadence) with frozen I/O; two healthy siblings were quiet for **21 min**
 (0.23×) and **84 min** (0.38×) and both continued.
 
+### Check what the helper counted before accepting `working`
+
+The current helper can count the persistent **driver batch job** as an active job and can
+accept any positive I/O delta as progress. Neither proves structure generation or relaxation.
+Separate driver jobs from optimization jobs by job ID, workdir and command; compare actual
+generation/population files and optimizer outputs. A few heartbeat bytes per second with no
+new structures over several normal generation cycles calls for manual triage, even if the
+helper prints `working`. Its verdict is advice, not proof that all writers exited.
+
 ## If it is dead — first tell the user why (do not silently restart)
 
 Never report "it crashed" without an interpretation, and never restart before preserving evidence.
@@ -130,22 +140,92 @@ Write that interpretation into the hand-off so the next session does not repeat 
 
 ## Recovery: three branches
 
-Precondition for **all three**: prove no writer is still alive — no `uspex.x`, no `USPEX -r`, no
-`matlab_helper` whose cwd is this run, and no scheduler job of this run
-(`check_run_liveness.py` prints exactly that proof; confirm with `squeue -u $USER`/`qstat -u $USER`).
+Before marker cleanup or restart, verify that the old loop, engine, helpers and scheduler
+steps exited. Inspect the node that hosted them, not just the login node. Attribute processes
+by the captured process tree, workdir and job ID; an empty queue alone is insufficient.
+If this run still has optimization jobs, record their IDs and wait for their outputs before
+this all-writers-stopped procedure; do not duplicate or indiscriminately cancel them.
 
 | Branch | Choose it when | Do |
 |---|---|---|
-| **A — continue in place** | the cause is understood or transient, the `*.mat` state is intact, and the last completed generation is complete in its `results<f>/` | `rm -f still_running still_reading`, run one foreground `USPEX -r`, confirm it does real work, then re-attach the detached loop |
+| **A — continue in place** | the cause is understood or transient and the `*.mat` state is intact | follow the ordered stop-and-probe procedure below, keeping scientific inputs and state intact |
 | **B — pick-up restart** | the state is suspect, the failure reproduces, or the run was killed mid-generation | record `Warnings`; `USPEX --clean`; set `pickUpYN = 1`, `pickUpGen = <last complete generation>`, `pickUpFolder = <f>`; one foreground `USPEX -r` into a new `results<N>`; verify it before re-attaching the loop |
 | **C — fresh start** | the attempt is abandoned, or the chemistry/settings have changed | `USPEX --clean` and relaunch; keep the old `results*/` folders for the record |
 
-```bash
-# A (the common case after a MATLAB-phase death)
-rm -f still_running still_reading
-USPEX -r                       # foreground: watch it ingest, rank, and emit new structures
-nohup setsid ./01-<name> >> /dev/null 2>&1 &     # or assets/run_uspex_loop.sh
-```
+### Branch A — stop the loop, preserve state, probe once
+
+Follow these stages in order for the identified run. Existing user authorization to recover
+that run covers this procedure; do not ask again for the same recovery. Otherwise present
+the target, evidence and proposed stop before terminating processes.
+
+1. **Back up state and logs before stopping.** Record the absolute run directory, original
+   environment setup, driver job/PID, engine/helper process tree, optimization job IDs,
+   latest completed generation and current population progress. Preserve every root `*.mat`,
+   that completed generation, `INPUT.txt`, `Specific/`, `Submission/`, original loop/submit
+   scripts, `log`, `uspex-driver.log`, batch stdout/stderr, `Warnings`, `Jobs.history`, and
+   existing markers. Use a unique backup directory outside the calculation root and verify
+   the archive/file list. A copy made while writers are alive is diagnostic evidence;
+   take a second state snapshot after stage 3 for a consistent recovery point.
+
+   ```bash
+   cd "$run_dir" || exit 1       # verified absolute calculation root
+   recovery_dir=$(mktemp -d "$(dirname "$run_dir")/uspex-recovery.XXXXXX") || exit 1
+   # Archive the verified files listed above to recovery_dir; inspect the archive before stopping.
+   ps -eo user,pid,ppid,pgid,stat,args > "$recovery_dir/processes-before-stop.txt"
+   # Capture scheduler job details/workdirs and inspect the actual execution node too.
+   ```
+
+2. **Stop the persistent loop first, then its children.** Use the site's stop marker only
+   if the original loop supports it; that prevents another iteration but may not interrupt
+   a hung invocation. For a Slurm driver, cancel only its verified job ID:
+   `scancel "$driver_job_id"` (PBS: `qdel "$driver_job_id"`). For a detached loop:
+   `kill -TERM "$driver_pid"`. Then inspect the captured child tree and send TERM only to
+   surviving `USPEX -r`, `uspex.x` and `matlab_helper` PIDs belonging to this run. If TERM
+   fails after a bounded wait, recheck ownership and escalate only those survivors to KILL.
+   Do not use account-wide cancellation or broad `pkill -f USPEX`. Cancelling the batch job
+   or killing the shell does not prove its children disappeared.
+
+3. **Verify exit and take a frozen snapshot.** On the execution node, recheck the recorded
+   PIDs/tree, workdirs and scheduler steps. Confirm that the loop cannot respawn, no engine/
+   helper of this run survives, and the old driver is terminal in `sacct` or PBS accounting.
+   A helper outside the root workdir still belongs to the run if its captured parent/job does.
+   Resolve any optimization jobs still writing before continuing. Copy the MAT state again
+   into a separate `state-after-stop` backup with the completed generation and final logs;
+   verify the backup. Check active runner-lock ownership rather than deleting a lock file
+   to bypass it.
+
+4. **Move only actual stale markers into the backup.** The user's current installation
+   has `still_running`; it has no `still_reading` and does not require that file:
+
+   ```bash
+   [ ! -e still_running ] || mv -- still_running "$recovery_dir/still_running.before-probe"
+   ```
+
+   If another release actually created `still_reading`, preserve and move that existing
+   file too, after the same no-live-writer check. Never create a missing marker. Keep MAT
+   state, CalcFold directories, results and scientific inputs intact; do not use `USPEX --clean`.
+
+5. **Probe once in the original environment, then restore the original loop.** Restore
+   the original modules/conda/PATH/USPEX environment and remain in the calculation root.
+   Run one invocation with a separate log. On scheduler-only sites, submit one driver batch
+   job in that environment, without a surrounding loop:
+
+   ```bash
+   set -o pipefail
+   USPEX -r 2>&1 | tee "$recovery_dir/probe.log"
+   probe_rc=${PIPESTATUS[0]}
+   printf 'USPEX exit=%s\n' "$probe_rc" | tee "$recovery_dir/probe-exit.txt"
+   ```
+
+   Read the first actual error/traceback or blocking condition. Verify ingestion of existing
+   optimizer results, population advancement, new structure generation or new optimizer
+   submissions. A banner, busy CPU, marker change or zero exit alone is insufficient.
+   After the single invocation exits successfully and actual progress is confirmed, restore
+   the **original** loop with its original submission method; ensure only one driver exists.
+   Clear a loop stop marker only if that script requires it. Record the new driver job/PID,
+   probe result and generation progress. If the error/stall recurs, leave the loop stopped
+   and diagnose the captured failure. Do not resubmit repeatedly or speculatively change
+   the calculator, `INPUT.txt` or MAT fields.
 
 Details of `--clean`, the `pickUp*` scalars, the completeness gate for the source generation and
 the checklist are in `references/seeds-restarts.md`; run it from the original run directory and
@@ -153,11 +233,9 @@ never hand-delete `CalcFold*`, state files, or scheduler logs to force a stuck r
 
 Two notes specific to this failure mode:
 
-- **`still_running` is cleared as part of branch A** because every subsequent check must be able to
-  trust that marker, and the stale copy from a dead invocation is not evidence of anything. On the
-  audited 10.5.0 install the manual only documents `still_reading` for a plain re-run, so treat
-  `still_running` removal as local practice gated on the same no-live-writer proof — not as a
-  documented lock.
+- **Marker cleanup follows the installation.** The user's run has `still_running` and no
+  `still_reading`; the older 10.5 recipe does not require the latter to exist. Preserve the
+  actual stale marker before moving it aside, after writers exit.
 - **If the cause was not fixed, branch A will hang again at the same point.** Expect to repeat the
   triage; if it reproduces on the same operator, consider starting branch B from a generation before
   the offending structure, or reducing the offending `frac*`/soft-mutation weight in `INPUT.txt`
@@ -169,5 +247,5 @@ Two notes specific to this failure mode:
   empty queue: all four are expected mid-cycle.
 - Do not restart while any engine, driver, helper, or job of that run is alive — two writers corrupt
   the same `*.mat` state.
-- Do not present `stuck` as a diagnosis on its own: give the user the evidence, the interpretation,
-  and the branch you recommend, and let them confirm before processes are killed.
+- Do not present `stuck` as a diagnosis on its own: give the evidence, interpretation and
+  recovery. Obtain authorization if missing; honor recovery authorization already given.
