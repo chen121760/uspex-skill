@@ -17,6 +17,8 @@ CPUS_PER_TASK = 1
 GPUS = 0
 WALLTIME = "06:00:00"
 JOB_PREAMBLE = """<LOAD_MODULES_AND_ACTIVATE_ENV>"""
+JOB_NAME_PREFIX = ""  # Set a project/system label, e.g. "LiAlZrCl-A"; empty uses the run folder.
+JOB_NAME_MAX_LENGTH = 128  # Adjust to the site's verified limit.
 
 PLACEHOLDER = re.compile(r"<[A-Z0-9_]+>")
 
@@ -30,11 +32,26 @@ def _validate_configuration() -> None:
         raise RuntimeError("invalid Slurm resource counts")
 
 
+def _job_name(index: int) -> str:
+    run_dir = Path.cwd()
+    if re.fullmatch(r"CalcFold\d+", run_dir.name):
+        run_dir = run_dir.parent
+    prefix = re.sub(r"[^A-Za-z0-9_-]+", "-", JOB_NAME_PREFIX or run_dir.name).strip("-_")
+    if not prefix:
+        raise RuntimeError("set JOB_NAME_PREFIX to an identifiable ASCII project/system label")
+    if not prefix[0].isalpha():
+        prefix = "P-" + prefix
+    suffix = f"-{index}"
+    if JOB_NAME_MAX_LENGTH <= len(suffix):
+        raise RuntimeError("job-name limit leaves no room for the project/system label")
+    return prefix[: JOB_NAME_MAX_LENGTH - len(suffix)] + suffix
+
+
 def submit_job_local(index: int, command_executable: str) -> str:
     _validate_configuration()
     if not command_executable.strip():
         raise RuntimeError("commandExecutable is empty")
-    job_name = f"USPEX-{index}"
+    job_name = _job_name(index)
     directives = [
         f"#SBATCH --job-name={job_name}",
         f"#SBATCH --partition={PARTITION}",

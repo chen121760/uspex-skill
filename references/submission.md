@@ -186,12 +186,58 @@ Then edit the constants at the top of `submitJob_local.py`:
 - node, task, CPU, GPU, memory, and walltime request — keep each one within the limits that
   `sinfo`/`scontrol` (Slurm) or `qstat -q`/`pbsnodes` (PBS) reported for that queue;
 - module/conda activation and MPI launcher;
-- scheduler job-name limits.
+- `JOB_NAME_PREFIX` — use the project/system and run label, such as `LiAlZrCl-A`, so
+  the queue identifies which search a structure belongs to. If empty, the reference
+  callbacks use the run directory name, taking the parent when called from `CalcFoldN`;
+- `JOB_NAME_MAX_LENGTH` — use the site's verified limit; the callbacks sanitize the
+  label and truncate only its prefix, preserving the index suffix. PBS defaults to 15.
 
 The assets are reference implementations, not drop-in cluster configuration. They
 deliberately contain placeholders. Site policy and the engine build determine
 whether the command should be `srun`, `mpirun`, `mpiexec`, or a direct GPU/Python
 executable.
+
+## Adapt a job script the site gave you
+
+Keep the standard script's shell, verified resource directives, and environment setup.
+Replace its engine launch line with the complete `commandExecutable` passed by USPEX,
+exactly once. Do not leave a second hardcoded VASP launch beside that command. USPEX
+calls the local callback from the corresponding `CalcFoldN`; write `myrun` there and
+retain that working directory (PBS needs `cd "$PBS_O_WORKDIR"`).
+
+Default to a recognizable project/system name with a run label and index, such as
+`LiAlZrCl-A-12`, rather than the generic `USPEX-12`. Choose the label from the user's
+project context when preparing the callback. Preserve an explicit user-selected name.
+For a release-style template, the two substitutions are:
+
+```python
+JOB_NAME = 'LiAlZrCl-A-{}'.format(index)
+myrun_content = '''#!/bin/bash
+#SBATCH -J {}
+# ... retain the site's resource directives and environment setup ...
+{}
+'''.format(JOB_NAME, commandExecutable)
+```
+
+Keep the **rendered shell environment** unchanged. When the enclosing Python string
+uses `.format()`, literal shell braces in the template must be doubled:
+
+```python
+preamble = 'export NP=${{SLURM_NTASKS:-8}}\n{}\n'.format(commandExecutable)
+# Rendered shell: export NP=${SLURM_NTASKS:-8}
+```
+
+This escaping applies to literal `${NP}`, `${VASP_EXE}`, shell function bodies, and
+other braces in the template. Braces inside the supplied `commandExecutable` do not
+need escaping: substitution values are not formatted a second time. Joining preamble
+and command strings, as the reference assets do, also avoids formatting shell braces.
+
+On Slurm, adapting only the header/environment is sufficient **when the existing
+callback pair already has a working site-specific submit, job-ID, and status contract**.
+Check both callbacks: a standard `sbatch` script alone does not establish that status
+polling works. If parsing, terminal-state handling, or scheduler error handling differs
+at this site, adapt those parts too. PBS requires the corresponding `qsub`/`qstat` and
+job-ID contract. Reuse a proven pair and preserve its public function names and CLI.
 
 ## Required callback behavior
 
