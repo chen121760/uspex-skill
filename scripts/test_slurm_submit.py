@@ -34,6 +34,7 @@ class SlurmSubmitTests(unittest.TestCase):
         return (
             patch.object(MODULE, "PARTITION", "gpu"),
             patch.object(MODULE, "JOB_PREAMBLE", "module load engine"),
+            patch.object(MODULE, "JOB_NAME_PREFIX", "LiAlZrCl-A"),
         )
 
     def test_unresolved_placeholders_fail_before_sbatch(self) -> None:
@@ -44,8 +45,8 @@ class SlurmSubmitTests(unittest.TestCase):
 
     def test_success_preserves_command_once_and_parses_id(self) -> None:
         command = "python engine.py --name 'A B' > engine.log 2>&1"
-        partition, preamble = self.configured()
-        with tempfile.TemporaryDirectory() as tmp, partition, preamble, patch.object(
+        partition, preamble, prefix = self.configured()
+        with tempfile.TemporaryDirectory() as tmp, partition, preamble, prefix, patch.object(
             MODULE.subprocess,
             "run",
             return_value=completed(stdout="Submitted batch job 3511385\n"),
@@ -58,12 +59,12 @@ class SlurmSubmitTests(unittest.TestCase):
             finally:
                 os.chdir(old_cwd)
         self.assertEqual(script.count(command), 1)
-        self.assertIn("#SBATCH --job-name=USPEX-12", script)
+        self.assertIn("#SBATCH --job-name=LiAlZrCl-A-12", script)
         self.assertNotRegex(script, r"<[A-Z0-9_]+>")
 
     def test_sbatch_failure_is_raised(self) -> None:
-        partition, preamble = self.configured()
-        with tempfile.TemporaryDirectory() as tmp, partition, preamble, patch.object(
+        partition, preamble, prefix = self.configured()
+        with tempfile.TemporaryDirectory() as tmp, partition, preamble, prefix, patch.object(
             MODULE.subprocess,
             "run",
             return_value=completed(returncode=1, stderr="submission rejected\n"),
@@ -77,8 +78,8 @@ class SlurmSubmitTests(unittest.TestCase):
                 os.chdir(old_cwd)
 
     def test_ambiguous_output_is_not_a_job_id(self) -> None:
-        partition, preamble = self.configured()
-        with tempfile.TemporaryDirectory() as tmp, partition, preamble, patch.object(
+        partition, preamble, prefix = self.configured()
+        with tempfile.TemporaryDirectory() as tmp, partition, preamble, prefix, patch.object(
             MODULE.subprocess,
             "run",
             return_value=completed(stdout="queued somehow\n"),

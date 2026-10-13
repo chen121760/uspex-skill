@@ -9,6 +9,16 @@ drop-in cluster scripts. They do not contain private hostnames, queues, module
 paths, accounts, or executable paths. The placeholder tokens make an unedited
 production submission fail visibly.
 
+Default job names to project/system plus run label and index, such as `LiAlZrCl-A-12`.
+Set `JOB_NAME_PREFIX` from the project context; empty uses the run folder (the parent
+of CalcFoldN). The assets sanitize names and preserve the index suffix within
+`JOB_NAME_MAX_LENGTH` (PBS defaults to 15).
+
+When adapting a standard script, keep the rendered shell environment unchanged.
+Escape literal braces in Python `.format()` templates, and retain a Slurm contract
+only after submission and status polling are verified on the site. See *Adapt a job
+script the site gave you* in `references/submission.md`.
+
 Find a real queue before editing anything — never invent one:
 
 ```bash

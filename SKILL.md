@@ -65,6 +65,11 @@ from a chemically unrelated example.
    reuse that pair. If no pair exists anywhere and the guide is silent, **ask the user** for the
    scheduler, queue/account, and module preamble instead of inventing them, then record the
    verified facts with `--facts-out` so the next session starts from the guide.
+   When adapting a standard job script, use a descriptive project/system label plus the
+   structure index as the default job name (for example `LiAlZrCl-A-12`). Keep the engine
+   command dynamic, escape literal shell braces in Python `.format()` templates, and
+   verify the submit/status contract before deciding that only the Slurm header needs
+   changes; see *Adapt a job script the site gave you* in `references/submission.md`.
 4. Start from the closest example shipped with that executable: run `USPEX -e`,
    inspect the description, then copy with `USPEX -c NUM` in a clean directory.
 5. Route by version as soon as a custom property or objective is requested. Confirm the
