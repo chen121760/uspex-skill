@@ -308,7 +308,7 @@ def _role_of(cmdline: str) -> str | None:
         return "helper"
     if re.search(r"(^|\s|/)uspex\.x(\s|$)", cmdline):
         return "engine"
-    if re.search(r"USPEX\s+-r(\s|$)", cmdline):
+    if re.search(r"USPEX\s+-r(\s|$)|(?:^|[\s/])run_uspex_loop\.sh(?:\s|$)", cmdline):
         return "driver"
     return None
 
@@ -507,7 +507,7 @@ def decide(evidence: dict[str, object]) -> dict[str, object]:
         reasons.append("no engine (uspex.x) and no driver (USPEX -r) process belongs to this run")
         return _verdict("stopped", EXIT_STOPPED, reasons, warnings, [
             "Nothing is advancing: this needs a restart, not a kill.",
-            "Read the driver log for exit codes, then re-enter the loop (assets/run_uspex_loop.sh).",
+            "Read the run log and driver stderr, then restart the run's driver.",
             "A plain `USPEX -r` re-enters the completion path if USPEX_IS_DONE is still present.",
         ])
 

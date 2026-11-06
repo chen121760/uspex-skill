@@ -61,10 +61,8 @@ Three traps beginners hit:
   used on some Chinese academic clusters all answer `qsub`/`qstat` with different columns and
   different queue semantics. Read `qstat -B` and treat queue limits as server-specific.
 
-Once you have a name, write it into the run's
-[`Submission/submitJob_local.py`](../assets/submission/README.md) (`PARTITION` for Slurm,
-`QUEUE` for PBS) and re-run the discovery helper with `--workdir`: it reports the configured
-queue and flags a callback that still contains the `<PARTITION>`/`<QUEUE>` template placeholder.
+Once you have a name, set it in the run's `Submission/submitJob_local.py` and re-run the
+discovery helper with `--workdir` to confirm the configured queue.
 Then prove one tiny job end to end before the production population.
 
 ## When `Submission/` is not configured yet
@@ -88,14 +86,9 @@ instead of inventing a queue name or hand-writing scheduler directives:
    and extracts the queue name each one uses. On a real Slurm cluster this reports, for example,
    `queue=uspex` from a neighbouring project. Copy the pair into `RUN/Submission/`, adjust
    anything project-specific, and re-run the helper until the state reads `pair_present`.
-2. **If nothing was found, check the cluster guide, then ask the user.** Do not guess a queue name,
-   an account, or scheduler directives, and do not copy a queue name from a tutorial or another
-   site. Ask for the scheduler the batch nodes run, the queue/account to use, the module preamble,
-   and whether the site ships a `Submission/` pair to copy. The helper prints this as the
-   `ask-user` verdict so the request is explicit rather than improvised.
-3. Only when neither exists, copy the neutral template for the detected family from
-   `assets/submission/{slurm,pbs}/` and fill in the placeholders, as described below. The
-   templates are deliberately site-neutral and will fail visibly until specialised.
+3. **If there is no usable pair, start from the official EX01 templates below.** Adapt them to
+   the confirmed site settings. Ask for any missing queue/account or engine environment
+   details that the guide and live scheduler cannot establish.
 4. **Record what you learned** in the cluster guide so the next session starts at step 1:
 
    ```bash
@@ -110,6 +103,54 @@ instead of inventing a queue name or hand-writing scheduler directives:
 
 A remote pair (`whichCluster = 2`) additionally needs transport, paths, and an SSH setup that
 USPEX's own submission scripts can use — see the remote-submission notes further down.
+
+## Official EX01 templates
+
+Use the target installation and a clean temporary directory. `USPEX -c 1` was verified on
+10.6 to copy the silicon/VASP example, its driver `EX01-3D_Si_vasp.sh`, and `Submission/`.
+Inspect the actual files on the target release. If the user did not supply a driver, copy
+the official loop with a **30-second** polling delay (the inspected 10.6 template ships
+with `sleep 300`):
+
+```sh
+# Start in the real run directory with the target USPEX already on PATH.
+(
+    set -eu
+    run_dir=$(pwd -P)
+    test ! -e "$run_dir/run_uspex_loop.sh"
+    example_dir=$(mktemp -d)
+    trap 'cd /; rm -rf -- "$example_dir"' EXIT
+    cd "$example_dir"
+    USPEX -c 1
+    set -- ./EX01*.sh
+    test "$#" -eq 1 && test -f "$1" || exit 1
+    awk '
+        /^[[:space:]]*sleep[[:space:]]+[0-9]+[[:space:]]*$/ {
+            sub(/[0-9]+/, "30")
+            sleep_lines++
+        }
+        { print }
+        END { if (sleep_lines != 1) exit 1 }
+    ' "$1" > run_uspex_loop.sh
+    cp run_uspex_loop.sh "$run_dir/run_uspex_loop.sh"
+)
+```
+
+If the example's sleep line has a different form, inspect the script and set its polling
+delay to 30 seconds before copying it. If the run also needs submission callbacks, inspect
+and copy the relevant pair from the
+same temporary directory before cleanup. Transfer only the needed scripts. The example's
+`INPUT.txt`, `Specific/`, and reference results belong to the silicon example.
+
+The official local callbacks on the inspected 10.6 installation work as follows:
+
+| Script | Behavior and site settings to verify |
+|---|---|
+| `submitJob_local.py` | Writes `myrun` for the current calculation with job name `USPEX-<index>`, inserts the stage's `commandExecutable`, calls `sbatch myrun`, and returns the numeric job ID after `<CALLRESULT>`. The example requests partition `lenovo`, one node, eight tasks and six hours, with vendor Intel/VASP/MPI modules. Replace those settings and verify job-ID parsing on the target site. |
+| `checkStatus_local.py` | Queries `squeue -j JOBID`, returning `0` for `R` or `PD` and otherwise `1` after `<CALLRESULT>`. The stock code treats query errors as completion and can delete `USPEX*` logs. Verify active and terminal states, handle query failures separately, and preserve diagnostic logs. Check engine output for scientific success. |
+
+For PBS, adapt the submission command, ID parsing and status check together; see the
+Slurm/PBS contract below.
 
 ## What USPEX expects
 
@@ -162,7 +203,7 @@ the final relaxed structure or parse a project-owned intermediate. Do not assume
 move between stages; define and test any transfer explicitly. See
 [`custom-objectives.md`](custom-objectives.md).
 
-## Adapt a site pair or start from the neutral templates
+## Adapt the callbacks to the site
 
 Prefer a scheduler pair already proven on the target site, then audit it against
 the contracts and tests below. Preserve its queue/partition, account, resource,
@@ -170,27 +211,18 @@ environment, launcher, and job-ID conventions while replacing unsafe generic
 exception handling. Do not copy a PBS pair to Slurm, a Slurm pair to PBS, or one
 site's directives blindly to another site.
 
-If no trustworthy site pair exists, copy one neutral reference pair from this
-skill:
-
-```bash
-cp assets/submission/slurm/*.py RUN/Submission/
-# or
-cp assets/submission/pbs/*.py RUN/Submission/
-```
-
-Then edit the constants at the top of `submitJob_local.py`:
+When adapting EX01, use the Slurm/PBS reference implementations in
+[`assets/submission/`](../assets/submission/README.md) to check the contract. Set the
+following in the run's `submitJob_local.py`:
 
 - partition/queue and optional account — take the value from the discovery step above, never
   from a template or a tutorial;
 - node, task, CPU, GPU, memory, and walltime request — keep each one within the limits that
   `sinfo`/`scontrol` (Slurm) or `qstat -q`/`pbsnodes` (PBS) reported for that queue;
 - module/conda activation and MPI launcher;
-- `JOB_NAME_PREFIX` — use the project/system and run label, such as `LiAlZrCl-A`, so
-  the queue identifies which search a structure belongs to. If empty, the reference
-  callbacks use the run directory name, taking the parent when called from `CalcFoldN`;
-- `JOB_NAME_MAX_LENGTH` — use the site's verified limit; the callbacks sanitize the
-  label and truncate only its prefix, preserving the index suffix. PBS defaults to 15.
+- job name — use the project/system and run label plus the structure index, such as
+  `LiAlZrCl-A-12`. Keep the name within the site's limit and preserve the index suffix.
+  The reference callbacks implement this with `JOB_NAME_PREFIX` and `JOB_NAME_MAX_LENGTH`.
 
 The assets are reference implementations, not drop-in cluster configuration. They
 deliberately contain placeholders. Site policy and the engine build determine
@@ -324,36 +356,26 @@ python scripts/package_uspex_run.py RUN \
 
 It refuses a failed static preflight or an existing output archive unless `--force` is explicit.
 The archive contains only the clean input set (`INPUT.txt`, `Specific/`, `Submission/`, optional
-`Seeds/` and `POSCAR_SUBSTRATE`), the persistent driver, both environment/static checkers, the
+`Seeds/` and `POSCAR_SUBSTRATE`), the run's `run_uspex_loop.sh` if present, both environment/static checkers, the
 queue-discovery helper, the code-99 smoke checker, the run-status checker and the conditional
 structure packager, and `RUN_MANIFEST.json` with per-file hashes. It deliberately excludes
 `results*`, `CalcFold*`, scheduler logs, and other bulky or stale run state.
 
 ## Persistent `USPEX -r` driver
 
-USPEX 10.5/10.6 runners are commonly advanced by repeated `USPEX -r` calls. Copy
-the supplied driver into the run directory:
+Use the user's driver if supplied. Otherwise install the [official EX01 driver](#official-ex01-templates)
+with the skill's 30-second default. The shell loop checks for `USPEX_IS_DONE` before each cycle,
+appends the date and the stdout of `USPEX -r` to `log`, then sleeps for 30 seconds.
+The loop checks for completion again after the sleep. It has no duplicate-instance lock or
+automatic stop on a failed invocation. Check for an active driver before starting it, keep
+stderr, and investigate repeated failures from the logs.
+
+After the foreground smoke test, start the driver once from the run directory with the
+target USPEX environment loaded. Detach it using the cluster's approved mechanism, for example:
 
 ```bash
-cp assets/run_uspex_loop.sh RUN/
-cd RUN
-bash run_uspex_loop.sh
+nohup sh ./run_uspex_loop.sh > nohup.out 2>&1 &
 ```
-
-After the foreground smoke test, detach with the cluster-approved mechanism, for
-example:
-
-```bash
-nohup bash run_uspex_loop.sh > run-uspex-loop.out 2>&1 &
-```
-
-The driver:
-
-- stops when `USPEX_IS_DONE` appears;
-- uses `flock` when available to prevent duplicate loops;
-- honors `USPEX_POLL_SECONDS` and a `STOP_USPEX_LOOP` sentinel;
-- appends every runner exit code to a durable log;
-- never deletes scheduler or engine logs.
 
 The driver only repeats `USPEX -r`; it is not a restart mechanism. Resuming or jumping back is an
 operator decision made *before* re-attaching it: remove `still_reading` to continue the same run
@@ -376,7 +398,20 @@ raises a warning when more than one engine is active or when an engine runs with
 
 ## Capacity calculation
 
-Before launch, state explicitly:
+1. Size one structure job for the current workload. Use its CPU, GPU, memory and node
+   requests, accounting for the most demanding stage if all stages share one queue window.
+2. Estimate how many of those jobs can actually run at once. Use live scheduler availability,
+   existing allocations, per-node fit and remaining partition/account/QOS running limits.
+   Count shared GPU slots only if the scheduler and engine can support that sharing. If there
+   are no free slots, state that and estimate the expected capacity when allocations free up
+   before choosing a window.
+3. Set `numParallelCalcs` to **1.3–1.5 × the simultaneous job count**, rounded to a whole
+   number and limited by the available candidates and remaining submitted-job quota. For
+   10 running slots, use 13–15 in flight. Preserve an explicit user setting within site
+   limits. This buffer applies to scheduler-backed runs; local direct execution uses the
+   local capacity.
+
+Before launch, record:
 
 ```text
 population size
@@ -388,8 +423,8 @@ expected simultaneously active nodes/tasks/GPUs after scheduler/QOS limits
 expected walltime per stage
 ```
 
-`numParallelCalcs = 80` with eight MPI ranks per structure can request 640 ranks;
-the scheduler template does not enforce account quotas for you.
+`numParallelCalcs` counts queued and running structure jobs. Only the running jobs occupy
+the CPUs, GPUs and memory they request.
 
 ## Completion semantics
 

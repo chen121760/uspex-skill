@@ -818,12 +818,12 @@ def assess(
             and (report.markers.get("still_running") or report.markers.get("still_reading"))
         ):
             report.warn(
-                "an engine process is active without the packaged driver loop; starting "
-                "run_uspex_loop.sh now would give this run two writers"
+                "an engine process is active without a detected driver; starting "
+                "another driver now would give this run two writers"
             )
 
     # --- activity -----------------------------------------------------------#
-    activity_paths = [driver_log]
+    activity_paths = [driver_log, run_dir / "log"]
     if output_txt is not None:
         activity_paths.append(output_txt)
     for name in ("still_running", "still_reading", "USPEX_IS_DONE"):

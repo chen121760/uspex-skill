@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 
-ROOT_FILES = ("INPUT.txt", "POSCAR_SUBSTRATE")
+ROOT_FILES = ("INPUT.txt", "POSCAR_SUBSTRATE", "run_uspex_loop.sh")
 RUN_DIRECTORIES = ("Specific", "Submission", "Seeds")
 
 
@@ -55,7 +55,6 @@ def copy_payload(run_dir: Path, stage: Path, skill_root: Path) -> None:
         if source.is_dir():
             shutil.copytree(source, stage / name)
 
-    shutil.copy2(skill_root / "assets" / "run_uspex_loop.sh", stage / "run_uspex_loop.sh")
     scripts = stage / "scripts"
     scripts.mkdir()
     for name in (

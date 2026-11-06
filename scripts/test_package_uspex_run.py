@@ -61,7 +61,7 @@ class PackageRunTests(unittest.TestCase):
             with tarfile.open(output, "r:gz") as archive:
                 names = set(archive.getnames())
                 self.assertIn("INPUT.txt", names)
-                self.assertIn("run_uspex_loop.sh", names)
+                self.assertNotIn("run_uspex_loop.sh", names)
                 self.assertIn("scripts/check_uspex_env.py", names)
                 self.assertIn("scripts/preflight_uspex.py", names)
                 self.assertIn("scripts/smoke_code99.py", names)
@@ -70,6 +70,13 @@ class PackageRunTests(unittest.TestCase):
                 manifest = json.load(archive.extractfile("RUN_MANIFEST.json"))
                 self.assertEqual(manifest["uspex_version"], "10.6")
                 self.assertIn("INPUT.txt", manifest["files"])
+
+            driver = b"#!/bin/sh\nUSPEX -r >> log\n"
+            (run / "run_uspex_loop.sh").write_bytes(driver)
+            with_driver = base / "with-driver.tar.gz"
+            create_archive(run, with_driver, "10.6", skill_root)
+            with tarfile.open(with_driver, "r:gz") as archive:
+                self.assertEqual(archive.extractfile("run_uspex_loop.sh").read(), driver)
 
 
 if __name__ == "__main__":

@@ -38,7 +38,8 @@ the static preflight below. Then manually verify:
 - objective directions, units, and staged activation are written in the project README;
 - every engine stage maps to the intended command and input file;
 - VASP species order matches `POTCAR_<element>` and all comparable runs use one method;
-- scheduler resources × `numParallelCalcs` fit queue/account limits;
+- per-job resources and expected simultaneous jobs fit running limits; `numParallelCalcs`
+  fits the submitted-job quota (see [capacity calculation](submission.md#capacity-calculation));
 - surface substrate or 2D vacuum geometry is visualized before launch;
 - one-structure end-to-end smoke test passed.
 - for code-99 geometry-derived objectives, callback provenance identifies the current

@@ -1,8 +1,8 @@
 # Submission assets
 
-Use a pair already proven on the target site and audit it against
-`references/submission.md`, or copy exactly one neutral pair into a USPEX run's
-`Submission/` directory and edit the constants marked `EDIT`.
+Use a pair already proven on the target site, or adapt the
+[official EX01 callbacks](../../references/submission.md#official-ex01-templates).
+Use the implementations here to check the Slurm/PBS contracts when adapting them.
 
 These templates are intentionally site-neutral reference implementations, not
 drop-in cluster scripts. They do not contain private hostnames, queues, module

@@ -52,9 +52,9 @@ Before designing the chemistry, confirm the runtime can actually execute a searc
 - `USPEX -r` performs **one batch of work and exits**; a search completes by repeating it until
   `USPEX_IS_DONE` exists. Never read a single exit 0 as completion, and never leave the run to
   an interactive shell that an SSH disconnection will kill.
-- If a per-run driver script is not supplied, create one (see `assets/run_uspex_loop.sh`) and
-  start it detached only after the foreground pass proved parsing, submission, status checking
-  and result ingestion.
+- If a driver is not supplied, copy the [official EX01 driver](submission.md#official-ex01-templates)
+  with `USPEX -c 1`. Start it detached after the foreground pass proves parsing, submission,
+  status checking and result ingestion.
 
 Details and the symptom table live in [`environment.md`](environment.md).
 
@@ -246,13 +246,10 @@ stage so the mapping can be audited.
 - The run stops at `numGenerations` (default 100) **or** after `stopCrit` generations without a
   change in the best structure, whichever comes first — `stopCrit` defaults to an atom count,
   not to `numGenerations`. State which rule you expect to fire.
-- `numParallelCalcs` is the maximum number of structure jobs USPEX keeps in flight,
-  not MPI ranks per VASP job. Under Slurm/PBS, jobs waiting in the scheduler count toward
-  this window, so it may be larger than the number of physical slots when deliberate queueing
-  is desired.
-- The potential demand ceiling is `numParallelCalcs × resources_per_engine_job`; actual
-  simultaneous use is bounded by scheduler availability, association/QOS limits, and the
-  per-job request. State both the in-flight window and expected active concurrency.
+- For Slurm/PBS, estimate simultaneous jobs from the workload and live capacity, then set
+  `numParallelCalcs` to 1.3–1.5 times that count, subject to submission limits.
+  See [capacity calculation](submission.md#capacity-calculation). State both the running
+  estimate and the queued-plus-running limit.
 - Run a small end-to-end pilot before the production population, especially for
   quaternary spaces, surfaces, code-99 engines, and multi-objective searches.
 

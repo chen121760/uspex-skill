@@ -87,17 +87,9 @@ installation a run used in `Parameters.txt`/`OUTPUT.txt` and in the project READ
 ## The USPEX run loop
 
 `USPEX -r` performs **one batch of work and returns**. It submits or launches the pending
-stage jobs, ingests whatever finished, writes results, and exits 0. A complete search is
-produced by running it repeatedly until the run directory contains `USPEX_IS_DONE`:
-
-```bash
-while [ ! -f ./USPEX_IS_DONE ]; do
-  date >> driver.log
-  USPEX -r >> driver.log 2>&1
-  echo "cycle exit=$?" >> driver.log
-  sleep 10
-done
-```
+stage jobs, ingests finished results, and returns. Repeat it until the run directory contains
+`USPEX_IS_DONE`. Use the user's driver or obtain the
+[official EX01 driver with `USPEX -c 1`](submission.md#official-ex01-templates).
 
 Implications:
 
@@ -108,5 +100,4 @@ Implications:
 - the loop must outlive the SSH session (`nohup`/`setsid`/`tmux`/`screen`), and the
   environment from the activation script must be part of the loop's environment, not of the
   interactive shell only;
-- if the user has no driver script, write one (see `assets/run_uspex_loop.sh`) and start it
-  only after the foreground pass established that the pipeline works.
+- start the driver only after the foreground pass established that the pipeline works.

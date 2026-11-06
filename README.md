@@ -11,7 +11,7 @@ restarting it safely, and analysing what came out.
 | Runtime | Two-interpreter model (launcher vs. MATLAB Runtime vs. external engine), the shipped `randomTopology.cpython-*.so` ABI pin, `MCRROOT`/`USPEXPATH`, and a checker that fails loudly instead of degrading silently |
 | Input authoring | `calculationType` matrix, composition blocks for binary → quaternary and pseudobinary spaces, `optType` staging, VASP stage chain, and a per-keyword default table checked against the installed release |
 | Schedulers | Slurm/PBS queue discovery (including which queues your account is actually admitted to), a cluster-guide lookup, queue dry runs, and site-neutral `Submission/` callback templates |
-| Running | Why one `USPEX -r` is not a finished search, `USPEX_IS_DONE`, a detachable driver loop, and concurrency accounting that matches what the scheduler really tracks |
+| Running | The [official EX01 driver](references/submission.md#official-ex01-templates) from `USPEX -c 1`, the `USPEX_IS_DONE` marker, and [how to size the queue window](references/submission.md#capacity-calculation) at 1.3–1.5 times estimated running capacity |
 | Restarts | Seeds, seed-selected generations, `--clean` + `pickUpYN`/`pickUpGen`/`pickUpFolder`, and how to prove no writer is still active |
 | Liveness | Cadence-based triage of a quiet run — dead loop versus the long silent MATLAB phase every generation contains — plus the `still_running`/`still_reading` distinction, the interpretation to report, and the three recovery branches |
 | Custom objectives | Native 10.6 `x`/`y` properties and code `99` — one stage, one wrapper, callback read-back — and why the 10.5 two-stage `geom.out`/`energy.txt` handshake must not be reproduced on 10.6; the direction/sign convention (raw value written, negated copy displayed); the isolated 10.5 pattern for installations that must be preserved |
@@ -35,7 +35,7 @@ references/                  progressive disclosure — load only what the task 
   errors.md                  symptom → cause → fix
   resources.md               manuals, examples, companion tools, the cluster-guide convention
 scripts/                     checkers and tools, all runnable standalone
-assets/                      neutral Slurm/PBS Submission pairs and the run-loop driver
+assets/                      Slurm/PBS Submission references and legacy 10.5 assets
 assets/legacy105/            copy-paste templates for the patched 10.5 custom-property interface
 examples/                    how to pick the right shipped USPEX example
 ```
@@ -58,7 +58,7 @@ without an agent.
 | `uspex_status.py` | Judge a run from artefacts — done / running / intervene / unknown — attributing scheduler jobs by workdir and detecting a second writer |
 | `check_run_liveness.py` | Separate a dead loop from a long silent phase: measures the run's own generation cadence, samples engine I/O and CPU, and prints the evidence, the likely cause to report, and the next actions |
 | `extract_uspex_candidates.py` | Select structures by condition (composition, atom count, space group, volume, Pareto front, enthalpy/atom, hull distance, origin, convergence) into CSV + POSCAR with a per-field provenance manifest |
-| `package_uspex_run.py` | Preflight, then package a clean run (inputs, callbacks, driver, checkers) with a checksum manifest |
+| `package_uspex_run.py` | Preflight, then package clean inputs, callbacks, the run's `run_uspex_loop.sh` if present, and checkers with a checksum manifest |
 
 `probe_queues.sh` is a POSIX-shell equivalent of the queue probe for machines whose only
 interpreter is Python 2.

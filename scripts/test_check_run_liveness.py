@@ -292,6 +292,22 @@ class DecideTests(unittest.TestCase):
 
 
 class CollectTests(unittest.TestCase):
+    def test_driver_sleep_between_invocations_is_not_stopped(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            root = base / "run"
+            root.mkdir()
+            now = build_run(root, generations=4, cadence=3600.0, newest_age=240.0)
+            proc = base / "proc"
+            pid = proc / "4242"
+            pid.mkdir(parents=True)
+            (pid / "cwd").symlink_to(root)
+            (pid / "cmdline").write_bytes(b"sh\0./run_uspex_loop.sh\0")
+            report = collect(root, now=now, sample_seconds=0.0, proc_root=str(proc),
+                             jobs_text="", jobs_source="test")
+            self.assertEqual(report["state"], "working")
+            self.assertEqual([driver["pid"] for driver in report["processes"]["driver"]], [4242])
+
     def test_very_old_artefacts_without_process_inspection_are_not_called_stopped(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

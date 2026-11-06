@@ -116,7 +116,7 @@ evolves itself. Copy the mix from the nearest shipped example and record why it 
 | `abinitioCode` | `1` for every step (VASP) | One entry per relaxation/property stage; `1` = VASP, `99` = external engine |
 | `commandExecutable` | **none — must be specified** | One reusable command line or one line per stage |
 | `KresolStart` / `Kresolend` | `0.2` down to `0.08`, linearly | k-point resolution (2π/Å) per stage; should become finer across stages |
-| `numParallelCalcs` | `1` | Maximum structure calculations USPEX keeps in flight. With `whichCluster=1/2`, this includes queued jobs and need not equal available GPUs/nodes; it is not MPI ranks per job |
+| `numParallelCalcs` | `1` | Maximum structure calculations USPEX keeps in flight. With `whichCluster=1/2`, count queued and running jobs and default to 1.3–1.5 times the estimated simultaneous capacity, subject to [scheduler limits](submission.md#capacity-calculation) |
 | `whichCluster` | **`0` = no job script** | `0` launches engines directly, `1` uses local `Submission/`, `2` remote submission |
 | `remoteFolder` | none | Only active with `whichCluster = 2` |
 

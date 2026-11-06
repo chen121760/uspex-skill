@@ -1189,8 +1189,8 @@ def submission_advice(workdir: Path | None, roots: Iterable[Path]) -> dict[str, 
         best = candidates[0]
         advice["verdict"] = "adapt-template"
         advice["action"] = (
-            f"only neutral templates were found (for example {best['dir']}); copy the matching "
-            "family, fill PARTITION/QUEUE, the account and the resource request, then re-run"
+            "take the official callbacks from a temporary USPEX -c 1 example and adapt them "
+            f"to this scheduler (neutral reference: {best['dir']}); then re-run"
         )
     else:
         advice["verdict"] = "ask-user"

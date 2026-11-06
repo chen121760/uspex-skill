@@ -62,9 +62,11 @@ from a chemically unrelated example.
    a tutorial or a copied example. If `Submission/` is missing or incomplete, the same command
    first searches (`--search-root DIR`, default: the run's project directory) for a
    submit-callback pair that already works on this machine and reports the queue name inside it;
-   reuse that pair. If no pair exists anywhere and the guide is silent, **ask the user** for the
-   scheduler, queue/account, and module preamble instead of inventing them, then record the
-   verified facts with `--facts-out` so the next session starts from the guide.
+   reuse that pair. If neither the user nor the site supplies a usable pair, take the
+   callbacks from a temporary `USPEX -c 1` copy and adapt them to the confirmed scheduler,
+   queue/account, resources, and launcher. Ask only for missing site settings. See
+   [the EX01 templates](references/submission.md#official-ex01-templates) for what to copy
+   and what to verify. Record verified site facts with `--facts-out`.
    When adapting a standard job script, use a descriptive project/system label plus the
    structure index as the default job name (for example `LiAlZrCl-A-12`). Keep the engine
    command dynamic, escape literal shell braces in Python `.format()` templates, and
@@ -98,6 +100,9 @@ from a chemically unrelated example.
    and never assume the `1201`–`1207` channel is custom in an unpatched tree.
 6. Design the composition space, objective directions, relaxation stages, and
    scheduler contract before editing files.
+   Estimate the number of jobs that can actually run together from the workload and
+   the current scheduler capacity. Set the scheduler-backed `numParallelCalcs` using
+   the rule under **Hard guardrails** below.
    Check every default and legal value against the installed tree's own parameter
    dictionary, as summarized in `references/input-parameters.md`, instead of assuming
    the numbers of a copied example.
@@ -128,14 +133,16 @@ from a chemically unrelated example.
    Then test one scheduler callback path with a reduced throwaway USPEX input
    (`numParallelCalcs = 1`, tiny population). Do not use the full production initial
    population as the foreground smoke test.
-10. Understand the run loop before starting a search: the run only finishes when the
-   directory contains `USPEX_IS_DONE`, so `USPEX -r` must be repeated. Start
-   `assets/run_uspex_loop.sh` (or write an equivalent driver if the site has none) for the
-   production directory only after the reduced foreground pass established INPUT parsing,
-   job submission, status checking, and result extraction; keep it detached from the SSH
-   session. A large `initialPopSize` can spend minutes generating candidates before the first
-   scheduler job appears, so judge startup from the durable driver log rather than an idle queue
-   snapshot.
+10. Use the user's run driver when provided. Otherwise run `USPEX -c 1` in a temporary
+   directory using the target installation, copy the official EX01 shell driver into the
+   run as `run_uspex_loop.sh` with a **30-second** wait between cycles, then delete the
+   temporary example. The driver appends a timestamp and the stdout of `USPEX -r` to
+   `log`, then exits when the next loop check sees `USPEX_IS_DONE`.
+   It does not submit individual structure jobs itself; the callbacks in `Submission/`
+   do that. Run only one driver per search and detach it from SSH after the reduced
+   foreground test passes. See [driver setup](references/submission.md#persistent-uspex--r-driver).
+   A large `initialPopSize` can spend minutes generating candidates before the first job
+   appears; check the run log as well as the queue.
    A resumed run uses the same loop. For a stalled invocation, preserve state/logs, stop
    the original loop and children, verify their exit, move the actual stale `still_running`
    aside, and run one `USPEX -r` in the original environment. Confirm actual progress
@@ -143,7 +150,7 @@ from a chemically unrelated example.
    `still_reading` is version-dependent and absent from the user's current installation;
    do not require or create it. Alternatively, after `USPEX --clean`,
    re-launch from a completed generation of a chosen `results` folder with `pickUpYN = 1`
-   plus the `pickUpGen`/`pickUpFolder` scalars —?see `references/seeds-restarts.md`.
+   plus the `pickUpGen`/`pickUpFolder` scalars; see `references/seeds-restarts.md`.
 11. Judge a running search from artefacts, not from an exit status or a queue snapshot:
    `python scripts/uspex_status.py RUN` returns 0 done, 1 running, 2 intervene
    (stalled/failed), 3 unknown, and reports generations completed, structures finished,
@@ -236,13 +243,13 @@ from a chemically unrelated example.
 - Never invent scheduler configuration. Before probing anything else, read the cluster's own
   operating guide (`~/.cluster-agents.md` on the machine you are logged into — the
   `hpc-submit`/AICC convention, whose canonical template that skill owns). If it records the
-  queue, account, and job-script pattern, use them. If `Submission/` has no usable
-  submit/status pair, search for one that already works on this machine and reuse it; if none
-  exists, ask the user for the scheduler, queue/account, module preamble, and any site-supplied
-  pair. Then record the verified facts back into the guide with
-  `python scripts/check_schedulers.py --facts-out FILE` so nobody is asked twice. Guessing a
-  queue name, account, or scheduler directive is a failure mode, not a shortcut.
-- With a scheduler, `numParallelCalcs` is the number of structure calculations USPEX may
-  keep in flight, including queued jobs. It need not equal the number of physical GPUs or
-  nodes, although the queue/account limits and per-job resource request still bound actual
-  concurrency.
+  queue, account, and job-script pattern, use them. Follow workflow step 3 for obtaining
+  and verifying the submission callbacks.
+- With a scheduler, first estimate how many structure jobs can run simultaneously for this
+  workload. Use the per-job CPU, GPU, memory and node requests, the resources currently
+  available to the user, and partition/account/QOS limits. Default `numParallelCalcs` to
+  **1.3–1.5 times that estimate**, rounded to a whole number and capped by the remaining
+  submission quota and available candidates. If 10 can run, use 13–15 in flight, including
+  jobs waiting in the queue. Honor an explicit user setting within site limits. With
+  `whichCluster = 0`, size for local resources without a queue buffer. A one-job interface
+  test may use `numParallelCalcs = 1`.
