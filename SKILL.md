@@ -100,10 +100,12 @@ from a chemically unrelated example.
    and never assume the `1201`–`1207` channel is custom in an unpatched tree.
 6. Design the composition space, objective directions, relaxation stages, and
    scheduler contract before editing files.
-   Use the lowest search precision that preserves selection against a converged
-   reference. For a new system or objective without comparable evidence, propose a
+   For a new system or objective without comparable evidence, propose a
    [precision test on representative structures](references/running.md#choose-search-precision).
-   Revalidate shortlisted structures at the precision required for the final results.
+   Present the results and recommend the lowest-cost tier that preserves selection
+   against a converged reference. The user chooses the production precision and the
+   precision for final validation of shortlisted structures. Use a setting the user
+   has already approved for the same purpose.
    Estimate the number of jobs that can actually run together from the workload and
    the current scheduler capacity. Set the scheduler-backed `numParallelCalcs` using
    the rule under **Hard guardrails** below.

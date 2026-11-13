@@ -233,9 +233,9 @@ stage so the mapping can be audited.
 
 ## Choose search precision
 
-Choose the least costly numerical settings that reproduce the selection decisions USPEX
-needs to make. For a new system or objective, propose a small benchmark before committing
-to production:
+Use a small benchmark to identify numerical settings that reproduce the selection
+decisions USPEX needs to make. Propose this benchmark for a new system or objective
+when comparable evidence is unavailable:
 
 1. Draw a reproducible random sample from generated candidates. Cover the intended
    compositions, cell sizes and structure types. Include closely competing structures
@@ -255,9 +255,12 @@ to production:
    compare Pareto front membership. Track failed relaxations and compare the savings
    in wall time or resource hours. For cell relaxation, also check cell geometry and
    residual stress if they affect the objective or shortlist.
-4. Use the lowest-cost tier that meets those criteria for all candidates in that search
-   ranking. Reevaluate shortlisted structures and any relevant hull references with a
-   common higher precision protocol for final results.
+4. Present the ranking agreement, failures and compute cost for each tier. Recommend
+   the lowest-cost tier that meets the selection criteria and let the user choose the
+   production setting before launch. For shortlisted structures and relevant hull
+   references, recommend a common higher precision protocol and let the user choose
+   the setting for final validation. Apply any setting the user has already approved
+   for that purpose.
 
 For VASP settings, see the official notes on
 [energy cutoff and relative energies](https://vasp.at/wiki/Energy_cutoff_and_FFT_meshes)
