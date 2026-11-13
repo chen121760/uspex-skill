@@ -220,21 +220,48 @@ For a VASP stage at position `i`, provide `Specific/INCAR_i`. Provide
 `Specific/POTCAR_<element>` for each `atomType`, in exactly the same species order.
 Never place licensed POTCAR content in a repository or assistant response.
 
-Use at least three progressively stricter relaxations for production searches:
-
-1. robust coarse relaxation that tolerates poor generated structures;
-2. cell/ion relaxation at intermediate precision;
-3. strict final relaxation or static evaluation consistent across candidates.
-
-Tune the actual number of stages to chemistry and cost. `KresolStart` should become
-finer across stages and have one value per relevant stage according to the copied
-example. Place `ExternalPressure` in `INPUT.txt`, not in individual relaxation
-files. Keep functional, POTCAR choice, ENCUT, spin/U policy, smearing, and pressure
-consistent for every energy entering one ranking or convex hull.
+Start with a robust coarse relaxation if generated structures need it. Add tighter
+stages when they improve geometry or candidate selection enough to justify their cost.
+Provide one `KresolStart` value per relevant stage according to the installed release.
+Set `ExternalPressure` in `INPUT.txt`. Within each precision tier, use a consistent
+functional, POTCAR choice, cutoff, k-point policy, spin/U policy, smearing and pressure
+for all energies entering the same ranking or convex hull.
 
 `commandExecutable` may contain one command reused for all compatible stages or
 one line per stage. When engine types differ, provide one explicit command per
 stage so the mapping can be audited.
+
+## Choose search precision
+
+Choose the least costly numerical settings that reproduce the selection decisions USPEX
+needs to make. For a new system or objective, propose a small benchmark before committing
+to production:
+
+1. Draw a reproducible random sample from generated candidates. Cover the intended
+   compositions, cell sizes and structure types. Include closely competing structures
+   near the selection boundary when available.
+2. Relax and evaluate the same candidates from coarse to finer settings. For VASP, vary
+   relevant settings such as `ENCUT`, k-point density and electronic or ionic tolerances
+   while holding the physical model fixed. For each candidate and tier, record the
+   energy, enthalpy or other objective actually used for selection, convergence status
+   and compute cost. Use the same starting geometries when comparing alternative
+   protocols, or replay the preceding stages if testing a staged production workflow.
+   Compare against the finest tier after checking that further tightening leaves the
+   reference decisions stable on representative cases.
+3. Decide what must agree before comparing. For a single objective, check rank order,
+   overlap among the top candidates, and swaps near the selection cutoff. For variable
+   composition, compare formation enthalpy per atom, hull membership or distance as
+   appropriate, using consistent references within each tier. For multiple objectives,
+   compare Pareto front membership. Track failed relaxations and compare the savings
+   in wall time or resource hours. For cell relaxation, also check cell geometry and
+   residual stress if they affect the objective or shortlist.
+4. Use the lowest-cost tier that meets those criteria for all candidates in that search
+   ranking. Reevaluate shortlisted structures and any relevant hull references with a
+   common higher precision protocol for final results.
+
+For VASP settings, see the official notes on
+[energy cutoff and relative energies](https://vasp.at/wiki/Energy_cutoff_and_FFT_meshes)
+and [volume relaxation](https://vasp.at/wiki/index.php/Volume_relaxation).
 
 ## Population and parallelism
 
